@@ -255,6 +255,10 @@ def download(arguments):
             season="S" + str(season)
         source=show.get('source',"")
         remux=show.get('other',"")
+        try:
+            remux.lower()
+        except Exception as e:
+            pass
         if remux=="remux":
             source=remux
         resolution=show.get('screen_size',"")
@@ -281,11 +285,12 @@ def download(arguments):
             obj = untangle.parse(xml)
             obj.rss.channel.item
         except:
-            print("No matches")
+            print("No hits")
             continue
 
         for element in obj.rss.channel.item:
             matchtitle=element.title.cdata.strip()
+            print(matchtitle)
             comment=element.comments.cdata.strip() +  '\n'
             torrent=("["+site+"]"+ matchtitle +".torrent").replace("/", "_")
             link=element.link.cdata.strip()
@@ -294,13 +299,17 @@ def download(arguments):
             matchtitle=guessit(matchtitle)
             matchsource=matchtitle.get('source',"")
             matchremux=matchtitle.get('other',"")
+            try:
+                matchremux.lower()
+            except Exception as e:
+                pass
+            if matchremux=="remux":
+                matchsource=matchremux
             matchresolution=matchtitle.get('screen_size',"")
             matchencode=matchtitle.get('video_codec,""')
             matchname=matchtitle.get('title',"")
             matchrelease=matchtitle.get('release_group',"")
             oneweekpast=(date.today()-timedelta(days))
-
-
 
 
             if(source!=matchsource):
