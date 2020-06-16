@@ -1,4 +1,4 @@
-f#! /usr/bin/env python3
+#! /usr/bin/env python3
 
 """NOTE: READ DOCUMENTATION BEFORE USAGE.
 Usage:
