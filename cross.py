@@ -1,5 +1,4 @@
-
-#! /usr/bin/env python3
+f#! /usr/bin/env python3
 
 """NOTE: READ DOCUMENTATION BEFORE USAGE.
 Usage:
@@ -342,7 +341,7 @@ def download(arguments):
                 break
 if __name__ == '__main__':
 
-    arguments = docopt(__doc__, version='CLI AHD Uploader 1.2')
+    arguments = docopt(__doc__, version='cross_seed_find 1.0')
     file=arguments['--txt']
     if arguments['scan']:
         type=arguments['--type']
