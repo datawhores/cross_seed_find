@@ -30,8 +30,8 @@ Options:
   --torrent <torrents_download>  Here are where the torrent files will download
   --date <int> only download torrents newer then this(optional)  [default: 100000]
   --api <apikey> This is the apikey from jackett
-  --filter ; -f <reduce_query> Some sites don't allow for much filtering: 1:Video + Season(TV) + resolution + source 2:Video + Season(TV) + source
-  3:Video + Season(TV) + resolution   4:Video + Season(TV)
+  --filter ; -f <reduce_query> Some sites don't allow for much filtering should be a choice should be an int 1:Video + Season(TV) + resolution + source  2:Video + Season(TV) + source
+   3:Video + Season(TV) + resolution    4:Video + Season(TV)  5:Video
   Note:Season only matters for TV  [default: 2]
 
   --txt <txtlocation>  txt file with all the file names(required for all)
