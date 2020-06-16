@@ -25,6 +25,6 @@ Note: Instructions say you need root to install the binary. But you don't need r
 
 
 TODO
-- change jackett url
-- fd binary location
-- make sure date is working
+- allow changing jackett url or port
+- fd binary location not in path
+- make sure date restriction is working
