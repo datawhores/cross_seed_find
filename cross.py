@@ -1,40 +1,46 @@
+
 #! /usr/bin/env python3
 
 """NOTE: READ DOCUMENTATION BEFORE USAGE.
 Usage:
     cross.py (-h | --help)
-    cross.py scan   --txt=<txtlocation> --type <type> --root <root_folders_to_scan>...
-    [--delete]
-    [--ignored <sub_folders_to_ignore>]...
-    [--exclude <source_excluded>]...
+    cross.py scan --txt=<txtlocation> --type <type> --root <root_folders_to_scan>...
+    [--delete ] [--fd <binary_fd>] [--ignored <sub_folders_to_ignore> --exclude <source_excluded>]...
     cross.py grab --txt=<txtlocation> --torrent <torrents_download>  --api <apikey> --site <jackett_sitename>
-    [--date <int>]
-    [--filter <reduce_query>]
+    [--date <int> --filter <reduce_query> --url <jacketturl_port>]
     cross.py dedupe --txt=<txtlocation>
 
 
 
 Options:
   -h --help     Show this screen.
-  scan scan the root folder(s) create a list of files to download... 'txt file'
+  scan scan the root folder(s) create a list of files to download. 'txt file creator'
+
   --type ; -t <Movie(M) or TV(T)>  Controls how the folder is scanned. TV files have an extra directory for Seasons
   --root ; -r <root_folders_to_scan> subfolders in this root folder will be scanned
   --delete; -d  Will delete the old txt file(optional)
   --exclude ; -e <source_excluded>  This file type will not be scanned blu,tv,remux,otherm,web.(optional)  [default: [None]]
   --ignored ; -i <sub_folders_to_ignore>  If this folder is a part of  a root folder it will be ignore, subfolders can still be scan if you add it as a root (optional) [default: [None]]
+  --fd <binary_fd> fd is a program to scan for files, use this if you don't have fd in path,(optional)   [default: fd]
 
 
 
   grab downloads torrents using txt file
   --site <jackett_sitename>  This is the site name from Jackett
   --torrent <torrents_download>  Here are where the torrent files will download
-  --date <int> only download torrents newer then this(optional)  [default: 100000]
+  --date <int> only download torrents newer then this input should be int, and represents days. By default it is set to around 25 years(optional)  [default: 10000 ]
   --api <apikey> This is the apikey from jackett
-  --filter ; -f <reduce_query> Some sites don't allow for much filtering should be a choice should be an int 1:Video + Season(TV) + resolution + source  2:Video + Season(TV) + source
-   3:Video + Season(TV) + resolution    4:Video + Season(TV)  5:Video
-  Note:Season only matters for TV  [default: 2]
+  --filter ; -f <reduce_query> Some sites don't allow for much filtering in searches: [1:Video + Season(TV) + resolution + source][2:Video + Season(TV) + source]
+  [3:Video + Season(TV) + resolution][4:Video + Season(TV)][5:Video]
+  Note:Season only matters for TV(optional)  [default: 2]
 
-  --txt <txtlocation>  txt file with all the file names(required for all)
+  --url <jacketturl_port> This is the url used to access jackett main page(optional)  [default: http://127.0.0.1:9117/]
+
+
+  dedupe
+  Just a basic script to remove duplicate entries from the list. scan will automatically run this after it finishes
+
+  --txt <txtlocation>  txt file with all the file names(required for all commands)
   """
 import requests
 import subprocess
@@ -76,47 +82,53 @@ def skip(list,filename):
 def findmatches(arguments,max):
     final=""
     files=open(file,"a+")
+    fd=arguments['--fd']
+    print("ths is",fd)
+    print(source)
+
+
+
     if source['remux']=='yes':
         #1080
-        remux1=subprocess.check_output(['fd','-e','.mkv','-e','.mp4','-e','.m4v',max,'remux','--exclude','*2160*',
+        remux1=subprocess.check_output([fd,'-e','.mkv','-e','.mp4','-e','.m4v',max,'remux','--exclude','*2160*',
         '--exclude','*720*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude','*[tT][rR][aA][iL][eE][rR]*'])
         #2160
-        remux2=subprocess.check_output(['fd','-e','.mkv','-e','.mp4','-e','.m4v',max,'remux','--exclude','*1080*',
+        remux2=subprocess.check_output([fd,'-e','.mkv','-e','.mp4','-e','.m4v',max,'remux','--exclude','*1080*',
         '--exclude','*720*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude','*[tT][rR][aA][iL][eE][rR]*'])
         #720
-        remux3=subprocess.check_output(['fd','-e','.mkv','-e','.mp4','-e','.m4v',max,'remux','--exclude','*1080*',
+        remux3=subprocess.check_output([fd,'-e','.mkv','-e','.mp4','-e','.m4v',max,'remux','--exclude','*1080*',
         '--exclude','*2160*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude','*[tT][rR][aA][iL][eE][rR]*'])
         remux=remux1+remux2+remux3
         remux=remux.decode('utf-8')
         final=final+remux
     if source['web']=='yes':
             #1080
-            web1=subprocess.check_output(['fd','-e','.mkv','-e','.mp4','-e','.m4v',max,'(.webr|.web-r)','--exclude','*2160*',
+            web1=subprocess.check_output([fd,'-e','.mkv','-e','.mp4','-e','.m4v',max,'(.webr|.web-r)','--exclude','*2160*',
             '--exclude','*720*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
-        '*[tT][rR][aA][iL][eE][rR]*'])+subprocess.check_output(['fd','-e','.mkv','-e','.mp4','-e','.m4v',max,'(.web-dl|.webdl)','--exclude','*2160*',
+        '*[tT][rR][aA][iL][eE][rR]*'])+subprocess.check_output([fd,'-e','.mkv','-e','.mp4','-e','.m4v',max,'(.web-dl|.webdl)','--exclude','*2160*',
             '--exclude','*720*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
-        '*[tT][rR][aA][iL][eE][rR]*'])+subprocess.check_output(['fd','--glob','-e','.mkv','-e','.mp4','-e','.m4v',max,'*.[wW][eE][bB].*','--exclude','*2160*',
+        '*[tT][rR][aA][iL][eE][rR]*'])+subprocess.check_output([fd,'--glob','-e','.mkv','-e','.mp4','-e','.m4v',max,'*.[wW][eE][bB].*','--exclude','*2160*',
             '--exclude','*720*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude','*[tT][rR][aA][iL][eE][rR]*'])
             #2160
-            web2=subprocess.check_output(['fd','-e','.mkv','-e','.mp4','-e','.m4v',max,'(.webr|.web-r)','--exclude','*1080*',
+            web2=subprocess.check_output([fd,'-e','.mkv','-e','.mp4','-e','.m4v',max,'(.webr|.web-r)','--exclude','*1080*',
             '--exclude','*720*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
-        '*[tT][rR][aA][iL][eE][rR]*'])+subprocess.check_output(['fd','-e','.mkv','-e','.mp4','-e','.m4v',max,'(.web-dl|.webdl)','--exclude','*1080*',
+        '*[tT][rR][aA][iL][eE][rR]*'])+subprocess.check_output([fd,'-e','.mkv','-e','.mp4','-e','.m4v',max,'(.web-dl|.webdl)','--exclude','*1080*',
             '--exclude','*720*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
-        '*[tT][rR][aA][iL][eE][rR]*'])+subprocess.check_output(['fd','--glob','-e','.mkv','-e','.mp4','-e','.m4v',max,'*.[wW][eE][bB].*','--exclude','*1080*',
+        '*[tT][rR][aA][iL][eE][rR]*'])+subprocess.check_output([fd,'--glob','-e','.mkv','-e','.mp4','-e','.m4v',max,'*.[wW][eE][bB].*','--exclude','*1080*',
             '--exclude','*720*','--exclude','*480*','--exclude','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude','*[tT][rR][aA][iL][eE][rR]*'])
             #720
-            web3=subprocess.check_output(['fd','-e','.mkv','-e','.mp4','-e','.m4v',max,'(.webr|.web-r)','--exclude','*2160*',
+            web3=subprocess.check_output([fd,'-e','.mkv','-e','.mp4','-e','.m4v',max,'(.webr|.web-r)','--exclude','*2160*',
             '--exclude','*1080*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
-        '*[tT][rR][aA][iL][eE][rR]*'])+subprocess.check_output(['fd','-e','.mkv','-e','.mp4','-e','.m4v',max,'(.web-dl|.webdl)','--exclude','*2160*',
+        '*[tT][rR][aA][iL][eE][rR]*'])+subprocess.check_output([fd,'-e','.mkv','-e','.mp4','-e','.m4v',max,'(.web-dl|.webdl)','--exclude','*2160*',
             '--exclude','*1080*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
-        '*[tT][rR][aA][iL][eE][rR]*'])+subprocess.check_output(['fd','--glob','-e','.mkv','-e','.mp4','-e','.m4v',max,'*.[wW][eE][bB].*','--exclude','*2160*',
+        '*[tT][rR][aA][iL][eE][rR]*'])+subprocess.check_output([fd,'--glob','-e','.mkv','-e','.mp4','-e','.m4v',max,'*.[wW][eE][bB].*','--exclude','*2160*',
             '--exclude','*1080*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude','[tT][rR][aA][iL][eE][rR]*'])
             #480
-            web4=subprocess.check_output(['fd','-e','.mkv','-e','.mp4','-e','.m4v',max,'(.webr|.web-r)','--exclude','*2160*',
+            web4=subprocess.check_output([fd,'-e','.mkv','-e','.mp4','-e','.m4v',max,'(.webr|.web-r)','--exclude','*2160*',
             '--exclude','*720*','--exclude','*1080*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
-        '*[tT][rR][aA][iL][eE][rR]*'])+subprocess.check_output(['fd','-e','.mkv','-e','.mp4','-e','.m4v',max,'(.web-dl|.webdl)','--exclude','*2160*',
+        '*[tT][rR][aA][iL][eE][rR]*'])+subprocess.check_output([fd,'-e','.mkv','-e','.mp4','-e','.m4v',max,'(.web-dl|.webdl)','--exclude','*2160*',
             '--exclude','*720*','--exclude','*1080*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
-        '*[tT][rR][aA][iL][eE][rR]*'])+subprocess.check_output(['fd','--glob','-e','.mkv','-e','.mp4','-e','.m4v',max,'*.[wW][eE][bB].*','--exclude','*2160*',
+        '*[tT][rR][aA][iL][eE][rR]*'])+subprocess.check_output([fd,'--glob','-e','.mkv','-e','.mp4','-e','.m4v',max,'*.[wW][eE][bB].*','--exclude','*2160*',
             '--exclude','*720*','--exclude','*1080*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude','*[tT][rR][aA][iL][eE][rR]*'])
 
             web=web1+web2+web3+web4
@@ -124,15 +136,15 @@ def findmatches(arguments,max):
             final=final+web
     if source['blu']=='yes':
             #1080
-            blu1=subprocess.check_output(['fd','-e','.mkv','-e','.mp4','-e','.m4v',max,'.blu','--exclude','*2160*',
+            blu1=subprocess.check_output([fd,'-e','.mkv','-e','.mp4','-e','.m4v',max,'.blu','--exclude','*2160*',
             '--exclude','*720*','--exclude','*480*','--exclude','*[rR][eE][mM][uU][xX]*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
         '*[tT][rR][aA][iL][eE][rR]*'])
             #2160
-            blu2=subprocess.check_output(['fd','-e','.mkv','-e','.mp4','-e','.m4v',max,'.blu','--exclude','*1080*',
+            blu2=subprocess.check_output([fd,'-e','.mkv','-e','.mp4','-e','.m4v',max,'.blu','--exclude','*1080*',
             '--exclude','*720*','--exclude','*480*','--exclude','*[rR][eE][mM][uU][xX]*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
         '*[tT][rR][aA][iL][eE][rR]*'])
             #720
-            blu3=subprocess.check_output(['fd','-e','.mkv','-e','.mp4','-e','.m4v',max,'.blu','--exclude','*1080*',
+            blu3=subprocess.check_output([fd,'-e','.mkv','-e','.mp4','-e','.m4v',max,'.blu','--exclude','*1080*',
             '--exclude','*2160*','--exclude','*480*','--exclude','*[rR][eE][mM][uU][xX]*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
         '*[tT][rR][aA][iL][eE][rR]*'])
             blu=blu1+blu2+blu3
@@ -141,16 +153,16 @@ def findmatches(arguments,max):
 
     if source['tv']=='yes':
             #1080
-            tv1=subprocess.check_output(['fd','-e','.mkv','-e','.mp4','-e','.m4v',max,'hdtv','--exclude','*2160*',
+            tv1=subprocess.check_output([fd,'-e','.mkv','-e','.mp4','-e','.m4v',max,'hdtv','--exclude','*2160*',
             '--exclude','*720*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude','*[tT][rR][aA][iL][eE][rR]*'])
             #2160
-            tv2=subprocess.check_output(['fd','-e','.mkv','-e','.mp4','-e','.m4v',max,'hdtv','--exclude','*1080*',
+            tv2=subprocess.check_output([fd,'-e','.mkv','-e','.mp4','-e','.m4v',max,'hdtv','--exclude','*1080*',
             '--exclude','*720*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude','*[tT][rR][aA][iL][eE][rR]*'])
             #720
-            tv3=subprocess.check_output(['fd','-e','.mkv','-e','.mp4','-e','.m4v',max,'hdtv','--exclude','*1080*',
+            tv3=subprocess.check_output([fd,'-e','.mkv','-e','.mp4','-e','.m4v',max,'hdtv','--exclude','*1080*',
             '--exclude','*2160*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude','*[tT][rR][aA][iL][eE][rR]*'])
             #480
-            tv4=subprocess.check_output(['fd','-e','.mkv','-e','.mp4','-e','.m4v',max,'hdtv','--exclude','*1080*',
+            tv4=subprocess.check_output([fd,'-e','.mkv','-e','.mp4','-e','.m4v',max,'hdtv','--exclude','*1080*',
             '--exclude','*2160*','--exclude','*720*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude','*[tT][rR][aA][iL][eE][rR]*'])
             tv=tv1+tv2+tv3+tv4
             tv=tv.decode('utf-8')
@@ -158,19 +170,19 @@ def findmatches(arguments,max):
     #finding Others
     #1080
     if source['other']=='yes':
-        other1=subprocess.check_output(['fd','-e','.mkv','-e','.mp4','-e','.m4v',max,'tv','--exclude','*2160*',
+        other1=subprocess.check_output([fd,'-e','.mkv','-e','.mp4','-e','.m4v',max,'tv','--exclude','*2160*',
         '--exclude','*720*','--exclude','*480*','--exclude','*[rR][eE][mM][uU][xX]*','--exclude','*.[wW][eE][bB]*','--exclude','*.[bB][lL][uU]*','--exclude','*[tT][vV]*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
     '*[tT][rR][aA][iL][eE][rR]*'])
     #2160
-        other2=subprocess.check_output(['fd','-e','.mkv','-e','.mp4','-e','.m4v',max,'tv','--exclude','*1080*',
+        other2=subprocess.check_output([fd,'-e','.mkv','-e','.mp4','-e','.m4v',max,'tv','--exclude','*1080*',
         '--exclude','*720*','--exclude','*480*','--exclude','*[rR][eE][mM][uU][xX]*','--exclude','*.[wW][eE][bB]*','--exclude','*.[bB][lL][uU]*','--exclude','*[tT][vV]*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
     '*[tT][rR][aA][iL][eE][rR]*'])
     #720
-        other3=subprocess.check_output(['fd','-e','.mkv','-e','.mp4','-e','.m4v',max,'tv','--exclude','*1080*',
+        other3=subprocess.check_output([fd,'-e','.mkv','-e','.mp4','-e','.m4v',max,'tv','--exclude','*1080*',
         '--exclude','*2160*','--exclude','*480*','--exclude','*[rR][eE][mM][uU][xX]*','--exclude','*.[wW][eE][bB]*','--exclude','*.[bB][lL][uU]*','--exclude','*[tT][vV]*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
     '*[tT][rR][aA][iL][eE][rR]*'])
     #480
-        other4=subprocess.check_output(['fd','-e','.mkv','-e','.mp4','-e','.m4v',max,'tv','--exclude','*1080*',
+        other4=subprocess.check_output([fd,'-e','.mkv','-e','.mp4','-e','.m4v',max,'tv','--exclude','*1080*',
         '--exclude','*2160*','--exclude','*720*','--exclude','480','--exclude','*[rR][eE][mM][uU][xX]*','--exclude','*.[wW][eE][bB]*','--exclude','*.[bB][lL][uU]*','--exclude','*[tT][vV]*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
     '*[tT][rR][aA][iL][eE][rR]*'])
         others=other1+other2+other3+other4
@@ -213,9 +225,8 @@ def searchtv(arguments):
 
 
     for season in seasonlist:
-        print(season)
         os.chdir(season)
-        findmatches(file,max)
+        findmatches(arguments,max)
 
     duperemove()
 
@@ -265,7 +276,7 @@ def download(arguments):
         release=show.get('release_group',"")
 
         xml=tempfile.NamedTemporaryFile(mode = 'w+').name
-        jackett="http://127.0.0.1:9117/jackett/api/v2.0/indexers/"
+        jackett=arguments['--url'] +"jackett/api/v2.0/indexers/"
         url=jackett+ site +"/results/torznab/api?apikey=" + apikey + "&t=search&extended=1&q=" + \
         {"1":name + ' ' + season + ' '  + source  + ' ' + resolution, \
         "2":name + ' ' +season + ' ' +source, \
@@ -308,9 +319,8 @@ def download(arguments):
             matchencode=matchtitle.get('video_codec,""')
             matchname=matchtitle.get('title',"")
             matchrelease=matchtitle.get('release_group',"")
-            oneweekpast=(date.today()-timedelta(days))
-            print(season_num)
-            print(matchseason)
+            daterestrict=(date.today()-timedelta(days))
+
 
             if(source!=matchsource):
                 continue
@@ -327,7 +337,7 @@ def download(arguments):
                 continue
             if (matchremux!=remux):
                 continue
-            if(oneweekpast > filedate):
+            if(daterestrict > filedate):
                 continue
             else:
                 torrentfile=(folder+torrent)
@@ -341,7 +351,7 @@ def download(arguments):
                 break
 if __name__ == '__main__':
 
-    arguments = docopt(__doc__, version='cross_seed_find 1.0')
+    arguments = docopt(__doc__, version='CLI AHD Uploader 1.2')
     file=arguments['--txt']
     if arguments['scan']:
         type=arguments['--type']
