@@ -13,7 +13,7 @@ https://github.com/sharkdp/fd/releases - Note: Instructions say you need root to
 
 **How to use**
 
-scanning:cross.py scan --txt=<txtlocation> --type <type> --root <root_folders_to_scan>
+scanning:cross.py scan --txt=txtlocation --type (type) --root (root_folders_to_scan)
 
     Adds the names of files to a txt file.
     
