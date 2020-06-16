@@ -33,7 +33,7 @@ scanning:cross.py scan --txt=txtlocation --type (type) --root (root_folders_to_s
     --exclude Exclude certain types of videos from being added to txt file blu=encode,remux=remux,web=web-dl or web-rip orweb,tv=hdtv,other=badly named files
     --ignored If this folder is a **subfolder of a root** it will be ignored. For now the path should be /home/folder and not /home/folder/ as the latter will not work
     
-Downloading:cross.py grab --txt=<txtlocation> --torrent <torrents_download>  --api <apikey> --site <jackett_sitename>
+Downloading:cross.py grab --txt=(txtlocation) --torrent (torrents_download)  --api (apikey) --site (jackett_sitename)
     
     Searches files on jackett using a txt file. txt file should have acceptable scene names/tracker names i.e "Better.Call.Saul.S04E01.Smoke.1080p.BluRay.REMUX.AVC.DTS-HD.MA.5.1-EPSiLON.mkv"
     Otherwise it will probably just end up downloading the first hit for any search. Files are label with the sitename from jackett and put into the torrent folder
