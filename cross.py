@@ -5,9 +5,9 @@
 Usage:
     cross.py (-h | --help)
     cross.py scan --txt=<txtlocation> --type <type> --root <root_folders_to_scan>...
-    [--delete ] [--fd <binary_fd>] [--ignored <sub_folders_to_ignore> --exclude <source_excluded>]...
+    [--delete ][--ignored <sub_folders_to_ignore> --exclude <source_excluded>]...
     cross.py grab --txt=<txtlocation> --torrent <torrents_download>  --api <apikey> --site <jackett_sitename>
-    [--date <int> --filter <reduce_query> --url <jacketturl_port>]
+    [--date <int> --filter <reduce_query> --url <jacketturl_port> --fd <binary_fd>]
     cross.py dedupe --txt=<txtlocation>
 
 
@@ -16,10 +16,10 @@ Options:
   -h --help     Show this screen.
   scan scan the root folder(s) create a list of files to download. 'txt file creator'
 
-  --type ; -t <Movie(M) or TV(T)>  Controls how the folder is scanned. TV files have an extra directory for Seasons
+  --type ; -t <movie(m or tv(t)>  Controls how the folder is scanned. TV files have an extra directory for Seasons
   --root ; -r <root_folders_to_scan> subfolders in this root folder will be scanned
   --delete; -d  Will delete the old txt file(optional)
-  --exclude ; -e <source_excluded>  This file type will not be scanned blu,tv,remux,otherm,web.(optional)  [default: [None]]
+  --exclude ; -e <source_excluded>  This file type will not be scanned blu,tv,remux,other,web.(optional)  [default: [None]]
   --ignored ; -i <sub_folders_to_ignore>  If this folder is a part of  a root folder it will be ignore, subfolders can still be scan if you add it as a root (optional) [default: [None]]
   --fd <binary_fd> fd is a program to scan for files, use this if you don't have fd in path,(optional)   [default: fd]
 
@@ -266,10 +266,10 @@ def download(arguments):
         source=show.get('source',"")
         remux=show.get('other',"")
         try:
-            remux.lower()
+            remux=remux.lower()
         except Exception as e:
             pass
-        if remux=="remux":
+        if remux=="remux" or source=="HD-DVD":
             source=remux
         resolution=show.get('screen_size',"")
         encode=show.get('video_codec',"")
@@ -310,10 +310,10 @@ def download(arguments):
             matchremux=matchtitle.get('other',"")
             matchseason=matchtitle.get('season')
             try:
-                matchremux.lower()
+                matchremux=matchremux.lower()
             except Exception as e:
                 pass
-            if matchremux=="remux":
+            if matchremux=="remux" or matchsource=="HD-DVD":
                 matchsource=matchremux
             matchresolution=matchtitle.get('screen_size',"")
             matchencode=matchtitle.get('video_codec,""')
@@ -325,6 +325,7 @@ def download(arguments):
             if(source!=matchsource):
                 continue
 
+
             if(matchrelease!=release):
                 continue
 
@@ -334,6 +335,7 @@ def download(arguments):
                 continue
 
             if(matchrelease!=release):
+
                 continue
             if (matchremux!=remux):
                 continue
@@ -342,6 +344,7 @@ def download(arguments):
             else:
                 torrentfile=(folder+torrent)
                 print(torrentfile)
+
 
                 fp = open(torrentfile, "wb")
                 try:
@@ -369,9 +372,9 @@ if __name__ == '__main__':
             except KeyError:
                 pass
 
-        if type=="Movie" or type=="M":
+        if type=="movie" or type=="m":
             searchmovies(arguments)
-        elif type=="TV" or type=="T":
+        elif type=="tv" or type=="t":
             searchtv(arguments)
         else:
             print("invalid type")
