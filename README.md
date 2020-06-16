@@ -1,5 +1,3 @@
-
-
 **Requirements:**
 
 Python 3
