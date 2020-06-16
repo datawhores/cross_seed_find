@@ -246,13 +246,13 @@ def download(arguments):
         print("Searching for match:"+line)
         show=guessit(line)
         name=show.get('title',"")
-        season=show.get('season')
-        if type(season) is list or season==None:
+        season_num=show.get('season')
+        if type(season_num) is list or season_num==None:
             season=""
-        elif(season<10):
-            season="S" + "0" + str(season)
+        elif(season_num<10):
+            season="S" + "0" + str(season_num)
         else:
-            season="S" + str(season)
+            season="S" + str(season_num)
         source=show.get('source',"")
         remux=show.get('other',"")
         try:
@@ -290,7 +290,6 @@ def download(arguments):
 
         for element in obj.rss.channel.item:
             matchtitle=element.title.cdata.strip()
-            print(matchtitle)
             comment=element.comments.cdata.strip() +  '\n'
             torrent=("["+site+"]"+ matchtitle +".torrent").replace("/", "_")
             link=element.link.cdata.strip()
@@ -299,6 +298,7 @@ def download(arguments):
             matchtitle=guessit(matchtitle)
             matchsource=matchtitle.get('source',"")
             matchremux=matchtitle.get('other',"")
+            matchseason=matchtitle.get('season')
             try:
                 matchremux.lower()
             except Exception as e:
@@ -310,7 +310,8 @@ def download(arguments):
             matchname=matchtitle.get('title',"")
             matchrelease=matchtitle.get('release_group',"")
             oneweekpast=(date.today()-timedelta(days))
-
+            print(season_num)
+            print(matchseason)
 
             if(source!=matchsource):
                 continue
@@ -319,6 +320,8 @@ def download(arguments):
                 continue
 
             if(matchresolution!=resolution):
+                continue
+            if(matchseason!=season_num):
                 continue
 
             if(matchrelease!=release):
