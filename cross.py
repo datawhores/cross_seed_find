@@ -73,6 +73,30 @@ def skip(list,filename):
     else:
         return 1
 
+def convertlower(dict):
+    try:
+        dict['source']=dict['source'].lower()
+    except Exception as e:
+        pass
+
+    try:
+        dict['other']=dict['other'].lower()
+    except Exception as e:
+        pass
+    try:
+        dict['title']=dict['title'].lower()
+    except Exception as e:
+        pass
+    try:
+        dict['release_group']=dict['release_group'].lower()
+    except Exception as e:
+        pass
+    return dict
+
+
+
+
+
 
 
 
@@ -83,8 +107,7 @@ def findmatches(arguments,max):
     final=""
     files=open(file,"a+")
     fd=arguments['--fd']
-    print("ths is",fd)
-    print(source)
+
 
 
 
@@ -198,13 +221,6 @@ def findmatches(arguments,max):
         files.write(final)
     files.close()
 
-
-
-
-
-
-
-
 def searchtv(arguments):
   open(file, 'w').close()
   max="--max-results=1"
@@ -234,7 +250,7 @@ def searchtv(arguments):
 def searchmovies(arguments):
     max="--max-results=200"
     roots=arguments['--root']
-    ignorelist=arguments['--ignore']
+    ignorelist=arguments['--ignored']
     print("Searching for all Movies")
     for root in roots:
         for movie in os.scandir(root):
@@ -255,6 +271,7 @@ def download(arguments):
     for line in files:
         print("Searching for match:"+line)
         show=guessit(line)
+        show=convertlower(show)
         name=show.get('title',"")
         season_num=show.get('season')
         if type(season_num) is list or season_num==None:
@@ -265,11 +282,7 @@ def download(arguments):
             season="S" + str(season_num)
         source=show.get('source',"")
         remux=show.get('other',"")
-        try:
-            remux=remux.lower()
-        except Exception as e:
-            pass
-        if remux=="remux" or source=="HD-DVD":
+        if remux=="remux" or source=="hd-dvd":
             source=remux
         resolution=show.get('screen_size',"")
         encode=show.get('video_codec',"")
@@ -306,38 +319,36 @@ def download(arguments):
             filedate= element.pubDate.cdata.strip()
             filedate=datetime.strptime(filedate, '%a, %d %b %Y %H:%M:%S %z').date()
             matchtitle=guessit(matchtitle)
+            matchtitle=convertlower(matchtitle)
+
             matchsource=matchtitle.get('source',"")
             matchremux=matchtitle.get('other',"")
             matchseason=matchtitle.get('season')
-            try:
-                matchremux=matchremux.lower()
-            except Exception as e:
-                pass
-            if matchremux=="remux" or matchsource=="HD-DVD":
-                matchsource=matchremux
             matchresolution=matchtitle.get('screen_size',"")
-            matchencode=matchtitle.get('video_codec,""')
+            matchencode=matchtitle.get('video_codec',"")
             matchname=matchtitle.get('title',"")
             matchrelease=matchtitle.get('release_group',"")
             daterestrict=(date.today()-timedelta(days))
 
+            if matchremux=="remux" or matchsource=="hd-dvd":
+                matchsource=matchremux
 
-            if(source!=matchsource):
+            if(matchsource!=source):
                 continue
 
+            if(matchname!=name):
+                continue
 
             if(matchrelease!=release):
                 continue
 
             if(matchresolution!=resolution):
                 continue
+
             if(matchseason!=season_num):
                 continue
 
             if(matchrelease!=release):
-
-                continue
-            if (matchremux!=remux):
                 continue
             if(daterestrict > filedate):
                 continue
