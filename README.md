@@ -13,7 +13,8 @@ https://github.com/sharkdp/fd/releases - Note: Instructions say you need root to
 
 **How to use**
 
-scanning:cross.py scan --txt=txtlocation --mvt and or --tvr (folders)
+scanning:cross.py scan --txt=txtlocation --mvr folder(s) and or --tvr folder(s)
+note: you need to put a mvt or tvr for each different folder 
 
     Adds the names of files to a txt file.
     
