@@ -1,3 +1,4 @@
+
 #! /usr/bin/env python3
 """NOTE: READ DOCUMENTATION BEFORE USAGE.
 Usage:
@@ -50,17 +51,13 @@ Options:
 import requests
 import subprocess
 from pathlib import Path
-import json
 import os
-import glob
 from guessit import guessit
-import untangle
-import xml.etree.ElementTree as ET
-import xml
 from datetime import date,timedelta, datetime
 from docopt import docopt
 import tempfile
 import urllib.parse
+import xmltodict
 
 
 class guessitinfo():
@@ -294,12 +291,12 @@ class Folder:
         except:
             return "No Files"
 def duperemove(txt):
-    txt=open(txt,"r")
+    input=open(txt,"r")
     lines_seen = set() # holds lines already seen
-    for line in txt:
+    for line in input:
         if line not in lines_seen: # not a duplicate
             lines_seen.add(line)
-    txt.close()
+    input.close()
     outfile = open(txt, "w")
     for line in lines_seen:
         outfile.write(line)
@@ -334,35 +331,27 @@ def findmatches(arguments,files):
     size=files.get_size()
     fileguessit=guessitinfo(file)
     fileguessit.set_values()
-    url=get_url(arguments,fileguessit)
-    xml=tempfile.NamedTemporaryFile(mode = 'w+').name
-    print("Searching with:",url)
+    search=get_url(arguments,fileguessit)
+    print("Searching with:",search)
     try:
-        response = requests.get(url)
+        response = requests.get(search)
     except:
-        print("Invalid URL:",url)
+        print("Issue getting response:",search)
         return
+    results=xmltodict.parse(response.content)
     try:
-        tree = ET.fromstring(response.content)
-        tree = ET.ElementTree(tree)
-        tree.write(xml)
+        results['rss']['channel']['item']
     except:
-        print("Probably an invalid site")
+        print("no results")
         return
-    try:
-        results = untangle.parse(xml)
-        results.rss.channel.item[0].title.cdata.strip()
-    except:
-        print("No hits")
-        return
-    for element in results.rss.channel.item:
-        matchtitle=element.title.cdata.strip()
-        link=element.link.cdata.strip()
-        matchdate= element.pubDate.cdata.strip()
-        matchsize= int(element.size.cdata.strip())
-        matchdate=datetime.strptime(matchdate, '%a, %d %b %Y %H:%M:%S %z').date()
+    for element in results['rss']['channel']['item']:
+        matchtitle=element['title']
+        matchdate=datetime.strptime(element['pubDate'], '%a, %d %b %Y %H:%M:%S %z').date()
+        matchsize=int(element['size'])
         matchguessit=guessitinfo(matchtitle)
         matchguessit.set_values()
+        link=element['link']
+        print("item:",size,"matching:",matchsize)
         if matchguessit.get_name()!=fileguessit.get_name():
             continue
         if matchguessit.get_source()!=fileguessit.get_source():
@@ -406,6 +395,9 @@ def searchtv(arguments,ignorefile):
   folders=open(arguments['--txt'],"a+")
   print("Adding TV Folders to txt")
   for root in arguments['--tvr']:
+      if os.path.isdir(root)==False:
+          print("is not valid directory")
+          continue
       temp=subprocess.check_output([arguments['--fd'],'Season\s[0-9][0-9]$','-t','d','--full-path',root,'--ignore-file',ignorefile]).decode('utf-8')
       folders.write(temp)
       print(temp)
@@ -418,6 +410,9 @@ def searchmovies(arguments,ignorefile):
     folders=open(arguments['--txt'],"a+")
     print("Adding Movies Folders to txt")
     for root in arguments['--mvr']:
+        if os.path.isdir(root)==False:
+            print("is not valid directory")
+            continue
         temp=subprocess.check_output([arguments['--fd'],'\)$','-t','d','--full-path',root,'--ignore-file',ignorefile]).decode('utf-8')
         folders.write(temp)
         print(temp)
