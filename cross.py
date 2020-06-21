@@ -3,50 +3,46 @@
 """NOTE: READ DOCUMENTATION BEFORE USAGE.
 Usage:
     cross.py (-h | --help)
-    cross.py scan --txt=<txtlocation>
-    [--delete][--fd <binary_fd>][--ignore <sub_folders_to_ignore> --mvr <movie_root(s)> --tvr <tv_root(s)>]...
-    cross.py grab --txt=<txtlocation> (--torrent <torrents_download>|--output <output>)   --api <apikey> --site <jackett_sitename>
-    [--date <int> --filter <reduce_query> --url <jacketturl_port> --fd <binary_fd> --size <t_or_f> ]
-    [--exclude <source_excluded>]...
+    cross.py scan[--txt=<txtlocation> --mvr <movie_root(s)>... --tvr <tv_root(s)>...]
+     [--config <config>][--delete][--fd <binary_fd> --ignore <sub_folders_to_ignore>...]
+    cross.py grab[--site <jackett_sitename> --url <jacketturl_port> --api <apikey> --txt=<txtlocation> ]
+    [--config <config>][ --date <int> --fd <binary_fd> --size <t_or_f> --filter <reduce_query>  --exclude <source_excluded>...]
+    [--output <output> --torrent <torrents_download> ]
     cross.py dedupe --txt=<txtlocation>
-
 
 
 Options:
   -h --help     Show this screen.
-  scan scan tv or movie folders root folder(s) create a list of directories. 'txt file creator'
+  --txt <txtlocation>  txt file with all the file names(required for all commands)  [default:None]
+  --fd <binary_fd> fd is a program to scan for files, use this if you don't have fd in path,(optional)   [default: fd]
+  --config <config> commandline overwrites config
 
-  roots
+    cross.py scan scan tv or movie folders root folder(s) create a list of directories. 'txt file creator'. Need at least 1 root.
+  --tvr <tv_root(s)> These are sonnarr type folders with the files with in a "season **" type folders
+  --mvr <movie_root(s)> These are radarr type folders with the files in a file that ends in the year
+  --delete; -d  Will delete the old txt file(optional)
+  --ignore ; -i <sub_folders_to_ignore>  folder will be ignored for scan (optional) [default:None]
 
---tvr <tv_root(s)> These are sonnarr type folders with the files with in a "season **" type folders
---mvr <movie_root(s)> These are radarr type folders with the files in a file that ends in the year
-
---delete; -d  Will delete the old txt file(optional)
---ignore ; -i <sub_folders_to_ignore>  folder will be ignored for scan (optional) [default: ""]
-
- grab downloads torrents using txt file
- pick 1 of the following torrent or output:
- --torrent ; -t <torrents_download>  Here are where the torrent files will download  [default: None]
- --output ; -o <output>  Here are where the torrentlinks will be weritte  [default: None]
-
+   cross.py grab downloads torrents using txt file option to download torrent with --cookie and/or output to file.
+  --torrent ; -t <torrents_download>  Here are where the torrent files will download  [default:None]
+  --output ; -o <output>  Here are where the torrentlinks will be weritte  [default:None]
+  --api ; -a <apikey> This is the apikey from jackett
   --site ; -s <jackett_sitename>  This is the site name from Jackett
   --date ; -r <int> only download torrents newer then this input should be int, and represents days. By default it is set to around 25 years(optional)  [default: 10000 ]
-  --api ; -a <apikey> This is the apikey from jackett
+
   --filter ; -f <reduce_query> Some sites don't allow for much filtering in searches: [1:Video + Season(TV) + resolution + source][2:Video + Season(TV) + source]
-  --exclude ; -e <source_excluded>  This file type will not be scanned blu,tv,remux,other,web.(optional)  [default: []]
   [3:Video + Season(TV) + resolution][4:Video + Season(TV)][5:Video]
-  Note:Season only matters for TV(optional)  [default: 2]
+  Note:Season only matters for TV. Default would be 4(optional)  [default:None]
+  --exclude ; -e <source_excluded>  This file type will not be scanned blu,tv,remux,other,web.(optional)  [default:None]
 
   --url ; -u <jacketturl_port> This is the url used to access jackett main page(optional)  [default: http://127.0.0.1:9117/]
   --size ; -z <t_or_f> set whether a search should be done by name only or include file size restriction. If true then an additonal check will be added to see if all the matching
-  "1080p Remux Files,2160 Remux Files" in a directory match the size of the jackett response(optional)   [default: t]
-
+  "1080p Remux Files,2160 Remux Files" in a directory match the size of the jackett response(optional)   [default: 1]
 
   dedupe
   Just a basic script to remove duplicate entries from the list. scan will automatically run this after it finishes
 
-  --txt <txtlocation>  txt file with all the file names(required for all commands)
-  --fd <binary_fd> fd is a program to scan for files, use this if you don't have fd in path,(optional)   [default: fd]
+
   """
 import requests
 import subprocess
@@ -58,6 +54,11 @@ from docopt import docopt
 import tempfile
 import urllib.parse
 import xmltodict
+import time
+import configparser
+config = configparser.ConfigParser(allow_no_value=True)
+
+
 
 
 class guessitinfo():
@@ -179,7 +180,18 @@ class Folder:
         fd=arguments['--fd']
         max=self.get_max()
         dir=self.get_dir().rstrip()
-        os.chdir(dir)
+        attempts = 0
+        while attempts<100:
+            try:
+                os.chdir(dir)
+                break
+            except:
+                attempts=attempts+1
+                print("Getting Files for:",dir,"attemp number ",attempt)
+                continue
+
+
+
         if self.get_type()=="remux2160":
             temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v',max,'remux','--exclude','*1080*',
             '--exclude','*720*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude','*[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
@@ -291,6 +303,7 @@ class Folder:
         except:
             return "No Files"
 def duperemove(txt):
+    print("Removing Duplicate lines from ",txt)
     input=open(txt,"r")
     lines_seen = set() # holds lines already seen
     for line in input:
@@ -309,49 +322,60 @@ def get_url(arguments,guessitinfo):
     filter=arguments['--filter']
     name=guessitinfo.get_name()
     season=guessitinfo.get_season()
+    if season!="":
+        season=season+ ' '
     source=guessitinfo.get_source()
     resolution=guessitinfo.get_resolution()
     url=jackett+ site +"/results/torznab/api?apikey=" + apikey + "&t=search&extended=1&q=" + \
-        {"1":name + ' ' + season + ' '  + source  + ' ' + resolution, \
-        "2":name + ' ' +season + ' ' +source, \
-        "3":name + ' ' +season + ' ' +resolution, \
+        {"1":name + ' ' + season + source  + ' ' + resolution, \
+        "2":name + ' ' + season +  source, \
+        "3":name + ' ' +season  +resolution, \
         "4":name + ' ' +season, \
         "5":name}.get(filter)
     url=url.replace(" ", "+")
     return url
 
 
-def findmatches(arguments,files):
+def get_matches(arguments,files):
     torrentfolder=arguments['--torrent']
     site=arguments['--site']
     datefilter=(date.today()- timedelta(int(arguments['--date'])))
     file=files.get_first()
+    file=files.get_first()
+    size=files.get_size()
     if file=="No Files":
         return
-    size=files.get_size()
     fileguessit=guessitinfo(file)
     fileguessit.set_values()
     search=get_url(arguments,fileguessit)
     print("Searching with:",search)
     try:
-        response = requests.get(search)
+        response = requests.get(search, timeout=120)
     except:
         print("Issue getting response:",search)
         return
     results=xmltodict.parse(response.content)
     try:
-        results['rss']['channel']['item']
-    except:
-        print("no results")
-        return
-    for element in results['rss']['channel']['item']:
+        results['rss']['channel']['item'][1]['title']
+        loop=True
+        max=len(results['rss']['channel']['item'])
+    except KeyError as key:
+        if str(key)=="1":
+            element=results['rss']['channel']['item']
+            max=1
+            loop=False
+        else:
+            print("Probably no results")
+            return
+
+    for i in range(max):
+        if loop: element = results['rss']['channel']['item'][i]
         matchtitle=element['title']
         matchdate=datetime.strptime(element['pubDate'], '%a, %d %b %Y %H:%M:%S %z').date()
         matchsize=int(element['size'])
         matchguessit=guessitinfo(matchtitle)
         matchguessit.set_values()
         link=element['link']
-        print("item:",size,"matching:",matchsize)
         if matchguessit.get_name()!=fileguessit.get_name():
             continue
         if matchguessit.get_source()!=fileguessit.get_source():
@@ -366,22 +390,23 @@ def findmatches(arguments,files):
             continue
         if difference(matchsize,size)>.01 and size!=0:
             continue
-        if torrentfolder=="None":
+        if arguments['--output']!="None":
             t=open(arguments['--output'],'a')
             print("writing to file:",arguments['--output'])
             t.write(link+'\n')
-            break
-        torrent=torrentfolder + ("["+site+"]"+ matchtitle +".torrent").replace("/", "_")
-        print(torrent)
-        try:
-            subprocess.run(['wget',link,'-O',torrent])
-            break
-        except:
-            print("web error")
-            break
+        if arguments['--torrent']!=None:
+            torrent=torrentfolder + ("["+site+"]"+ matchtitle +".torrent").replace("/", "_")
+            print(torrent)
+            try:
+                subprocess.run(['wget',link,'-O',torrent])
+            except:
+                print("web error")
+        else:
+            print("No option to download or output link")
+
 
 def set_ignored(arguments,ignore):
-    arg=arguments['--ignore']
+    arg=arguments['--ignore'].split(',')
     ignore=open(ignore,"a+")
     if arg==None:
         return
@@ -390,11 +415,11 @@ def set_ignored(arguments,ignore):
         ignore.write('\n')
 
 def searchtv(arguments,ignorefile):
-  if arguments['--tvr']==[]:
+  if arguments['--tvr']==[] or arguments['--tvr']==None:
     return
   folders=open(arguments['--txt'],"a+")
   print("Adding TV Folders to txt")
-  for root in arguments['--tvr']:
+  for root in arguments['--tvr'].split(','):
       if os.path.isdir(root)==False:
           print("is not valid directory")
           continue
@@ -405,11 +430,11 @@ def searchtv(arguments,ignorefile):
 
 
 def searchmovies(arguments,ignorefile):
-    if arguments['--mvr']==[]:
+    if arguments['--mvr']==[] or arguments['--mvr']==None:
         return
     folders=open(arguments['--txt'],"a+")
     print("Adding Movies Folders to txt")
-    for root in arguments['--mvr']:
+    for root in arguments['--mvr'].split(','):
         if os.path.isdir(root)==False:
             print("is not valid directory")
             continue
@@ -420,9 +445,9 @@ def searchmovies(arguments,ignorefile):
 
 def set_max(arguments):
 
-    if arguments['--size']=="t":
-        max="--max-results=200"
-    elif arguments['--size']=="f":
+    if arguments['--size']=="t" or arguments['--size']=='1' or arguments['--size']=="true" or arguments['--size']=="True":
+        max="--max-results=100"
+    elif arguments['--size']=="f" or arguments['--size']=="false" or arguments['--size']=="False":
         max="--max-results=1"
     else:
         print(arguments['--size'],"is not a valid value for size")
@@ -449,7 +474,7 @@ def download(arguments,txt):
     source=releasetype(arguments)
 
     for line in folders:
-        print(line)
+        print('\n',line)
         if line=='\n':
             continue
         if source['remux']=='yes':
@@ -457,189 +482,233 @@ def download(arguments,txt):
             remux1=Folder(line,"remux1080",max,arguments)
             remux1.set_files(files)
             remux1.set_size()
-            findmatches(arguments,remux1)
+            get_matches(arguments,remux1)
             #files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
             remux2=Folder(line,"remux2160",max,arguments)
             remux2.set_files(files)
             remux2.set_size()
-            findmatches(arguments,remux2)
+            get_matches(arguments,remux2)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
             remux3=Folder(line,"remux720",max,arguments)
             remux3.set_files(files)
             remux3.set_size()
-            findmatches(arguments,remux3)
+            get_matches(arguments,remux3)
             files.close()
         if source['blu']=='yes':
             files=tempfile.NamedTemporaryFile('w+')
             blu1=Folder(line,"blu1080",max,arguments)
             blu1.set_files(files)
             blu1.set_size()
-            findmatches(arguments,blu1)
+            get_matches(arguments,blu1)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
             blu2=Folder(line,"blu2160",max,arguments)
             blu2.set_files(files)
             blu2.set_size()
-            findmatches(arguments,blu2)
+            get_matches(arguments,blu2)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
             blu3=Folder(line,"blu720",max,arguments)
             blu3.set_files(files)
             blu3.set_size()
-            findmatches(arguments,blu3)
+            get_matches(arguments,blu3)
             files.close()
         if source['tv']=='yes':
             files=tempfile.NamedTemporaryFile('w+')
             tv1=Folder(line,"tv1080",max,arguments)
             tv1.set_files(files)
             tv1.set_size()
-            findmatches(arguments,tv1)
+            get_matches(arguments,tv1)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
             tv2=Folder(line,"tv2160",max,arguments)
             tv2.set_files(files)
             tv2.set_size()
-            findmatches(arguments,tv2)
+            get_matches(arguments,tv2)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
             tv3=Folder(line,"tv720",max,arguments)
             tv3.set_files(files)
             tv3.set_size()
-            findmatches(arguments,tv3)
+            get_matches(arguments,tv3)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
             tv4=Folder(line,"tv480",max,arguments)
             tv4.set_files(files)
             tv4.set_size()
-            findmatches(arguments,tv4)
+            get_matches(arguments,tv4)
             files.close()
         if source['other']=='yes':
             files=tempfile.NamedTemporaryFile('w+')
             other1=Folder(line,"other1080",max,arguments)
             other1.set_files(files)
             other1.set_size()
-            findmatches(arguments,other1)
+            get_matches(arguments,other1)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
             other2=Folder(line,"other2160",max,arguments)
             other2.set_files(files)
             other2.set_size()
-            findmatches(arguments,other2)
+            get_matches(arguments,other2)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
             other3=Folder(line,"other720",max,arguments)
             other3.set_files(files)
             other3.set_size()
-            findmatches(arguments,other3)
+            get_matches(arguments,other3)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
             other4=Folder(line,"other480",max,arguments)
             other4.set_files(files)
             other4.set_size()
-            findmatches(arguments,other4)
+            get_matches(arguments,other4)
             files.close()
         if source['web']=='yes':
             files=tempfile.NamedTemporaryFile('w+')
             web1=Folder(line,"web1080",max,arguments)
             web1.set_files(files)
             web1.set_size()
-            findmatches(arguments,web1)
+            get_matches(arguments,web1)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
             web2=Folder(line,"web2160",max,arguments)
             web2.set_files(files)
             web2.set_size()
-            findmatches(arguments,web2)
+            get_matches(arguments,web2)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
             web3=Folder(line,"web720",max,arguments)
             web3.set_files(files)
             web3.set_size()
-            findmatches(arguments,web3)
+            get_matches(arguments,web3)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
             web4=Folder(line,"web480",max,arguments)
             web4.set_files(files)
             web4.set_size()
-            findmatches(arguments,web4)
+            get_matches(arguments,web4)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
             webr1=Folder(line,"webr1080",max,arguments)
             webr1.set_files(files)
             webr1.set_size()
-            findmatches(arguments,webr1)
+            get_matches(arguments,webr1)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
             webr2=Folder(line,"webr2160",max,arguments)
             webr2.set_files(files)
             webr2.set_size()
-            findmatches(arguments,webr2)
+            get_matches(arguments,webr2)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
             webr3=Folder(line,"webr720",max,arguments)
             webr3.set_files(files)
             webr3.set_size()
-            findmatches(arguments,webr3)
+            get_matches(arguments,webr3)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
             webr4=Folder(line,"webr480",max,arguments)
             webr4.set_files(files)
             webr4.set_size()
-            findmatches(arguments,webr4)
+            get_matches(arguments,webr4)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
             webdl1=Folder(line,"webdl1080",max,arguments)
             webdl1.set_files(files)
             webdl1.set_size()
-            findmatches(arguments,webdl1)
+            get_matches(arguments,webdl1)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
             webdl2=Folder(line,"webdl2160",max,arguments)
             webdl2.set_files(files)
             webdl2.set_size()
-            findmatches(arguments,webdl2)
+            get_matches(arguments,webdl2)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
             webdl3=Folder(line,"webdl720",max,arguments)
             webdl3.set_files(files)
             webdl3.set_size()
-            findmatches(arguments,webdl3)
+            get_matches(arguments,webdl3)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
             webdl4=Folder(line,"webdl480",max,arguments)
             webdl4.set_files(files)
             webdl4.set_size()
-            findmatches(arguments,webdl4)
+            get_matches(arguments,webdl4)
             files.close()
+        time.sleep( 5 )
+        print("Waiting 5 Seconds")
 
+def createconfig(arguments):
+    try:
+        configpath=arguments.get('--config')
+        config.read(configpath)
+    except:
+        return arguments
+    if arguments['--txt']==None:
+        arguments['--txt']=config['general']['txt']
+    if arguments['--fd']=="fd":
+        arguments['--fd']=config['general']['fd']
+    if arguments['--site']==None:
+        arguments['--site']=config['grab']['site']
+    if arguments['--api']==None:
+        arguments['--api']=config['grab']['api']
+    if arguments['--torrent']==None:
+        arguments['--torrent']=config['grab']['torrent']
+    if arguments['--output']==None:
+        arguments['--output']=config['grab']['output']
+    if arguments['--exclude']==[] or  arguments['--exclude']==None:
+        arguments['--exclude']=config['grab']['exclude']
+    if arguments['--mvr']==[] or  arguments['--mvr']==None:
+        arguments['--mvr']=config['scan']['mvr']
+    if arguments['--tvr']==[] or  arguments['--tvr']==None:
+        arguments['--tvr']=config['scan']['tvr']
+    if arguments['--ignore']==[] or arguments['--ignore']==None:
+        arguments['--ignore']=config['scan']['ignore']
+    if arguments['--size']=="1":
+        arguments['--size']=config['grab']['size']
+    return arguments
+
+def set_filter(arguments):
+    if arguments['--filter']==None and int(config['grab']['filter'])>5:
+        arguments['--filter']="2"
+    elif arguments['--filter']==None and int(config['grab']['filter'])<5:
+        arguments['--filter']=config['grab']['filter']
+    return arguments
 
 if __name__ == '__main__':
-    #
     arguments = docopt(__doc__, version='cross_seed_scan 1.2')
+    createconfig(arguments)
+    set_filter(arguments)
     file=arguments['--txt']
+    try:
+        open(file,"r").close()
+    except:
+        print("No txt file")
+        quit()
 
     if arguments['scan']:
         print("Scanning for folders")
@@ -647,10 +716,13 @@ if __name__ == '__main__':
             open(file, 'w').close()
         ignorefile=os.environ['HOME'] + "/.fdignore"
         set_ignored(arguments,ignorefile)
+        duperemove(ignorefile)
         searchtv(arguments,ignorefile)
         searchmovies(arguments,ignorefile)
         duperemove(file)
+    elif arguments['grab']:
+        for element in arguments['--site'].split(','):
+            arguments['--site']=element
+            download(arguments,file)
     elif arguments['dedupe']:
         duperemove(arguments['--txt'])
-    elif arguments['grab']:
-        download(arguments,file)
