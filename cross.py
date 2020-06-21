@@ -187,7 +187,7 @@ class Folder:
                 break
             except:
                 attempts=attempts+1
-                print("Getting Files for:",dir,"attemp number ",attempt)
+                print("Getting Files for:",dir,"attemp number ",attempts)
                 continue
 
 
@@ -390,19 +390,17 @@ def get_matches(arguments,files):
             continue
         if difference(matchsize,size)>.01 and size!=0:
             continue
-        if arguments['--output']!="None":
+        if arguments['--output']!=None and arguments['--output']!="" :
             t=open(arguments['--output'],'a')
             print("writing to file:",arguments['--output'])
             t.write(link+'\n')
-        if arguments['--torrent']!=None:
+        if arguments['--torrent']!=None and arguments['--torrent']!="" :
             torrent=torrentfolder + ("["+site+"]"+ matchtitle +".torrent").replace("/", "_")
             print(torrent)
             try:
                 subprocess.run(['wget',link,'-O',torrent])
             except:
                 print("web error")
-        else:
-            print("No option to download or output link")
 
 
 def set_ignored(arguments,ignore):
