@@ -30,9 +30,9 @@ note: you need to put a mvt or tvr for each different folder
     
 Downloading:cross.py grab --txt=(txtlocation) --torrent (torrents_download)  --api (apikey) --site (jackett_sitename)
     
-    Searches files on jackett using a txt file. txt file should have acceptable scene names/tracker names i.e "Better.Call.Saul.S04E01.Smoke.1080p.BluRay.REMUX.AVC.DTS-HD.MA.5.1-EPSiLON.mkv"
-    Otherwise it will probably just end up downloading the first hit for any search. Files are label with the sitename from jackett and put into the torrent folder
-    For each search if a match is found no other results are checked
+    In short you should have a list of the directories from radarr where the movies are stored. So that the movie files are in that folder, and not any subfolder of that folder. 
+    Along with the folder where the season files for a tv show are held. i.e season 01.. season 02 etc.
+    
     
     pick either --torrent or --output option
     --torrent ; -t this is where matching files will be saved
