@@ -326,13 +326,16 @@ def get_url(arguments,guessitinfo):
         season=season+ ' '
     source=guessitinfo.get_source()
     resolution=guessitinfo.get_resolution()
-    url=jackett+ site +"/results/torznab/api?apikey=" + apikey + "&t=search&extended=1&q=" + \
-        {"1":name + ' ' + season + source  + ' ' + resolution, \
-        "2":name + ' ' + season +  source, \
-        "3":name + ' ' +season  +resolution, \
-        "4":name + ' ' +season, \
-        "5":name}.get(filter)
-    url=url.replace(" ", "+")
+    try:
+        url=jackett+ site +"/results/torznab/api?apikey=" + apikey + "&t=search&extended=1&q=" + \
+            {"1":name + ' ' + season + source  + ' ' + resolution, \
+            "2":name + ' ' + season +  source, \
+            "3":name + ' ' +season  +resolution, \
+            "4":name + ' ' +season, \
+            "5":name}.get(filter)
+        url=url.replace(" ", "+")
+    except:
+        return
     return url
 
 
@@ -367,6 +370,8 @@ def get_matches(arguments,files):
         else:
             print("Probably no results")
             return
+    except:
+        print("Error Creating Search Url")
 
     for i in range(max):
         if loop: element = results['rss']['channel']['item'][i]
@@ -376,18 +381,18 @@ def get_matches(arguments,files):
         matchguessit=guessitinfo(matchtitle)
         matchguessit.set_values()
         link=element['link']
-        if matchguessit.get_name()!=fileguessit.get_name():
-            continue
-        if matchguessit.get_source()!=fileguessit.get_source():
-            continue
+        # if matchguessit.get_name()!=fileguessit.get_name():
+        #     continue
+        # if matchguessit.get_source()!=fileguessit.get_source():
+        #     continue
         if matchguessit.get_group()!=fileguessit.get_group():
             continue
-        if matchguessit.get_resolution()!=fileguessit.get_resolution():
-            continue
-        if matchguessit.get_season_num()!=fileguessit.get_season_num():
-            continue
-        if datefilter > matchdate:
-            continue
+        # if matchguessit.get_resolution()!=fileguessit.get_resolution():
+        #     continue
+        # if matchguessit.get_season_num()!=fileguessit.get_season_num():
+        #     continue
+        # if datefilter > matchdate:
+        #     continue
         if difference(matchsize,size)>.01 and size!=0:
             continue
         if arguments['--output']!=None and arguments['--output']!="" :
