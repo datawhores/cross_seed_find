@@ -13,6 +13,8 @@ https://github.com/sharkdp/fd/releases - Note: Instructions say you need root to
 
 **How to use**
 
+commandline options can be loaded with --config or -x config. If using a config file and commandline, the latter option overwrites what is in the config
+
 scanning:cross.py scan --txt=txtlocation --mvr folder(s) and or --tvr folder(s)
 note: you need to put a mvt or tvr for each different folder 
 
