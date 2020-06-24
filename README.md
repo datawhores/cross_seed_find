@@ -10,6 +10,13 @@ Modules
 
 https://github.com/sharkdp/fd/releases - Note: Instructions say you need root to install the binary. But you don't need root to run it so I've included a version of it in the repo
 
+Windows Users: Please follow the instructions on how to install fd on windows, on the link above
+
+Seedbox Users:
+
+python3 -m venv /path/to/new/virtual/environment then you can use do something like 
+/path/to/new/virtual/environment/pip install to install modules and
+/path/to/new/virtual/environment/python3 to run the program
 
 **How to use**
 
