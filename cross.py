@@ -1,4 +1,3 @@
-
 #! /usr/bin/env python3
 """NOTE: READ DOCUMENTATION BEFORE USAGE.
 Usage:
@@ -36,7 +35,7 @@ Options:
   --exclude ; -e <source_excluded>  This file type will not be scanned blu,tv,remux,other,web.(optional)  [default:None]
 
   --url ; -u <jacketturl_port> This is the url used to access jackett main page(optional)  [default: http://127.0.0.1:9117/]
-  --size ; -z <t_or_f> set whether a search should be done by name only or include file size restriction. If true then an additonal check will be added to see if all the matching
+  --size ; -z <t_or_f> set whether a search should be dssone by name only or include file size restriction. If true then an additonal check will be added to see if all the matching
   "1080p Remux Files,2160 Remux Files" in a directory match the size of the jackett response(optional)   [default: 1]
 
   dedupe
@@ -169,7 +168,7 @@ class Folder:
     def set_size(self):
         temp=0
         self.get_files().seek(0, 0)
-        if len(self.get_files().readlines())<2:
+        if len(self.get_files().readlines())<1:
             return
         self.get_files().seek(0, 0)
         for line in self.get_files().readlines():
@@ -315,6 +314,7 @@ def duperemove(txt):
         outfile.write(line)
     outfile.close()
 
+
 def get_url(arguments,guessitinfo):
     jackett=arguments['--url'] +"jackett/api/v2.0/indexers/"
     site=arguments['--site']
@@ -374,26 +374,39 @@ def get_matches(arguments,files):
         print("Error Creating Search Url")
 
     for i in range(max):
+        title=None
+        filedate=None
+        group=None
+        season=None
+        resolution=None
+        source=None
+        filesize=None
         if loop: element = results['rss']['channel']['item'][i]
         matchtitle=element['title']
+        if matchtitle==None:
+            continue
         matchdate=datetime.strptime(element['pubDate'], '%a, %d %b %Y %H:%M:%S %z').date()
         matchsize=int(element['size'])
         matchguessit=guessitinfo(matchtitle)
         matchguessit.set_values()
         link=element['link']
-        # if matchguessit.get_name()!=fileguessit.get_name():
-        #     continue
-        # if matchguessit.get_source()!=fileguessit.get_source():
-        #     continue
-        if matchguessit.get_group()!=fileguessit.get_group():
-            continue
-        # if matchguessit.get_resolution()!=fileguessit.get_resolution():
-        #     continue
-        # if matchguessit.get_season_num()!=fileguessit.get_season_num():
-        #     continue
-        # if datefilter > matchdate:
-        #     continue
-        if difference(matchsize,size)>.01 and size!=0:
+        if matchguessit.get_name()==fileguessit.get_name():
+            title=True
+        if matchguessit.get_source()==fileguessit.get_source():
+            source=True
+        if matchguessit.get_group()==fileguessit.get_group():
+            group=True
+        if matchguessit.get_resolution()==fileguessit.get_resolution():
+            resolution=True
+        if matchguessit.get_season_num()!=fileguessit.get_season_num():
+            season=True
+        if datefilter < matchdate:
+            filedate=True
+        if difference(matchsize,size)<.01:
+            filesize=True
+        if title is True and source is True and group is True and resolution is True and filedate is True or filedate is True and group is True and filesize is True and size!=0:
+            pass
+        else:
             continue
         if arguments['--output']!=None and arguments['--output']!="" :
             t=open(arguments['--output'],'a')
@@ -457,7 +470,7 @@ def set_max(arguments):
         quit()
     return max
 def difference(value1,value2):
-    dif=(value2-value1)/((value1+value2)/2)
+    dif=abs((value2-value1)/((value1+value2)/2))
     return dif
 
 def releasetype(arguments):
@@ -662,8 +675,8 @@ def download(arguments,txt):
             webdl4.set_size()
             get_matches(arguments,webdl4)
             files.close()
-        time.sleep( 5 )
-        print("Waiting 5 Seconds")
+        # time.sleep( 5 )
+        # print("Waiting 5 Seconds")
 
 def createconfig(arguments):
     try:
