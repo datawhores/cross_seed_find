@@ -221,7 +221,7 @@ class Folder:
             temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v','remux','--exclude','*1080*',
             '--exclude','*720*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude','*[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
         elif self.get_type()=="remux1080":
-            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v','remux','--exclude','*2160*',
+            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v','remux','--exclude','*2160*
             '--exclude','*720*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude','*[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
         elif self.get_type()=="remux720":
             temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v','remux','--exclude','*1080*',
@@ -969,9 +969,11 @@ def get_missing(arguments,files,encode=None):
             season=True
         if difference(querysize,filesize)<.01:
             sizematch=True
+
+        #Change this based on site
         if (title is True and source is True and group is True and resolution is True) or (group is True and sizematch is True and filesize!=0):
             return
-        if (encode==False and title is True and source is True  and resolution is True):
+        if (title is True and source is True  and resolution is True):
             return
     print("Adding Potential Upload to File")
     output=open(output,"a+")
