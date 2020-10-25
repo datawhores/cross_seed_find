@@ -8,7 +8,7 @@ Usage:
     cross.py grab[--site <jackett_sitename> --url <jacketturl_port> --api <apikey> --txt=<txtlocation> ]
     [--config <config>][ --date <int> --fd <binary_fd> --fdignore <gitignore_style_ignorefile>  --size <t_or_f> --filter <reduce_query>  --exclude <source_excluded>...]
     [--output <output> --torrent <torrents_download> ]
-    cross.py missing [--txt=<txtlocation> --site <jackett_sitename> --url <jacketturl_port> --output2 <output>][--config <config>]
+    cross.py missing [--txt=<txtlocation> --site <jackett_sitename> --url <jacketturl_port> --output2 <output> --api <apikey>][--config <config>]
     cross.py dedupe --txt=<txtlocation>
 
 
