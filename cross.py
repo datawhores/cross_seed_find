@@ -897,8 +897,8 @@ def scan_folder(arguments,txt):
             webdl4.set_size()
             get_missing(arguments,webdl4)
             files.close()
-        # print("Waiting 5 Seconds")
-        # time.sleep(5)
+        print("Waiting 3 Seconds")
+        time.sleep(3)
 
 def get_missing(arguments,files,encode=None):
     if encode==None:
