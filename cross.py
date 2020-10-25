@@ -2,11 +2,13 @@
 """NOTE: READ DOCUMENTATION BEFORE USAGE.
 Usage:
     cross.py (-h | --help)
-    cross.py scan[--txt=<txtlocation> --mvr <movie_root(s)>... --tvr <tv_root(s)>...]
-     [--config <config>][--delete][--fd <binary_fd> --ignore <sub_folders_to_ignore>...]
+    cross.py scan[--txt=<txtlocation>]
+    [--mvr <movie_root(s)>] ... [--tvr <tv_root(s)>]... [--ignore <sub_folders_to_ignore>]...
+    [--config <config>][--delete --fd <binary_fd> --fdignore <gitignore_style_ignorefile>]
     cross.py grab[--site <jackett_sitename> --url <jacketturl_port> --api <apikey> --txt=<txtlocation> ]
-    [--config <config>][ --date <int> --fd <binary_fd> --size <t_or_f> --filter <reduce_query>  --exclude <source_excluded>...]
+    [--config <config>][ --date <int> --fd <binary_fd> --fdignore <gitignore_style_ignorefile>  --size <t_or_f> --filter <reduce_query>  --exclude <source_excluded>...]
     [--output <output> --torrent <torrents_download> ]
+    cross.py missing [--txt=<txtlocation> --site <jackett_sitename> --url <jacketturl_port> --output2 <output>][--config <config>]
     cross.py dedupe --txt=<txtlocation>
 
 
@@ -15,6 +17,9 @@ Options:
   --txt <txtlocation>  txt file with all the file names(required for all commands)  [default:None]
   --fd <binary_fd> fd is a program to scan for files, use this if you don't have fd in path,(optional)   [default: fd]
   --config <config> commandline overwrites config
+  --fdignore <gitignore_style_ignorefile> fd .fdignore file used by fd tto find which folders to ignore, on linux it defaults to the home directory.
+other OS may need to input this manually
+
 
     cross.py scan scan tv or movie folders root folder(s) create a list of directories. 'txt file creator'. Need at least 1 root.
   --tvr <tv_root(s)> These are sonnarr type folders with the files with in a "season **" type folders
@@ -38,13 +43,19 @@ Options:
   --size ; -z <t_or_f> set whether a search should be dssone by name only or include file size restriction. If true then an additonal check will be added to see if all the matching
   "1080p Remux Files,2160 Remux Files" in a directory match the size of the jackett response(optional)   [default: 1]
 
-  dedupe
+  cross.py missing
+  --output2 <txt_where_potential_uploads_are written> here we output to a txt file files that don't have any uploads. This means that we can potentially upload these, for rank.
+  Or to increase the amount of cross seeds we have
+
+
+  cross.py dedupe
   Just a basic script to remove duplicate entries from the list. scan will automatically run this after it finishes
 
 
   """
 import requests
 import subprocess
+from subprocess import PIPE
 from pathlib import Path
 import os
 from guessit import guessit
@@ -57,8 +68,9 @@ import time
 import configparser
 config = configparser.ConfigParser(allow_no_value=True)
 
-
-
+"""
+General Classes
+"""
 
 class guessitinfo():
     """
@@ -140,19 +152,18 @@ class guessitinfo():
     def get_source(self):
         return self.source
 
-
 class Folder:
     """
     Finds for example the 2160p Remux Files in a folder. Holds information about those files.
     """
 
-    def __init__(self,dir,type,max,arguments):
+    def __init__(self,dir,type,arguments):
         self.size=0
         self.type=type
         self.files=""
         self.dir=dir.strip()
-        self.max=max
         self.arguments=arguments
+        self.date=datetime.now().strftime("%m.%d.%Y")
     def get_dir(self):
         return self.dir
     def get_type(self):
@@ -161,12 +172,14 @@ class Folder:
         return  self.files
     def get_size(self):
         return  self.size
-    def get_max(self):
-        return self.max
     def get_arg(self):
         return  self.arguments
     def set_size(self):
         temp=0
+        #error out if no files found
+        if self.arguments["--size"]==False or self.arguments["--size"]=="F" or self.arguments["--size"]=="false" or self.arguments["--size"]=="f" or self.get_files()==None:
+            self.size=tempg
+            return
         self.get_files().seek(0, 0)
         if len(self.get_files().readlines())<1:
             return
@@ -177,7 +190,6 @@ class Folder:
         self.size=temp
     def set_files(self,files):
         fd=arguments['--fd']
-        max=self.get_max()
         dir=self.get_dir().rstrip()
         attempts = 0
         while attempts<100:
@@ -188,121 +200,142 @@ class Folder:
                 attempts=attempts+1
                 print("Getting Files for:",dir,"attemp number ",attempts)
                 continue
+        if attempts==100:
+            errorpath=pathlib.Path(__file__).parent.absolute().as_posix()+"/Errors/"
+            if os.path.isdir(errorpath)==False:
+                os.mkdir(errorpath)
+            errorfile=errorpath+"ahdcs.errors"+self.date+".txt"
+            errorfile=open(errorfile,"a+")
+            errorstring="No " +self.get_type() + " Files Found: "+dir + " - " +datetime.now().strftime("%m.%d.%Y_%H%M") + "\n"
+            errorfile.write(errorstring)
+            errorfile.close()
+            print("Unable to get Files From Directory")
+            self.files = None
+            return
+
+
 
 
 
         if self.get_type()=="remux2160":
-            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v',max,'remux','--exclude','*1080*',
+            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v','remux','--exclude','*1080*',
             '--exclude','*720*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude','*[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
         elif self.get_type()=="remux1080":
-            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v',max,'remux','--exclude','*2160*',
+            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v','remux','--exclude','*2160*',
             '--exclude','*720*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude','*[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
         elif self.get_type()=="remux720":
-            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v',max,'remux','--exclude','*1080*',
+            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v','remux','--exclude','*1080*',
             '--exclude','*2160*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude','*[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
         elif self.get_type()=="blu2160":
-            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v',max,'.blu','--exclude','*1080*',
+            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v','.blu','--exclude','*1080*',
             '--exclude','*720*','--exclude','*480*','--exclude','*[rR][eE][mM][uU][xX]*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
         '*[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
         elif self.get_type()=="blu1080":
-            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v',max,'.blu','--exclude','*2160*',
+            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v','.blu','--exclude','*2160*',
             '--exclude','*720*','--exclude','*480*','--exclude','*[rR][eE][mM][uU][xX]*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
         '*[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
         elif self.get_type()=="blu720":
-            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v',max,'.blu','--exclude','*1080*',
+            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v','.blu','--exclude','*1080*',
             '--exclude','*2160*','--exclude','*480*','--exclude','*[rR][eE][mM][uU][xX]*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
         '*[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
 
         elif self.get_type()=="webr2160":
-            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v',max,'(.webr|.web-r)','--exclude','*1080*',
+            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v','(.webr|.web-r)','--exclude','*1080*',
             '--exclude','*720*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
         '*[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
         elif self.get_type()=="webr1080":
-            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v',max,'(.webr|.web-r)','--exclude','*2160*',
+            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v','(.webr|.web-r)','--exclude','*2160*',
             '--exclude','*720*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
         '*[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
         elif self.get_type()=="webr720":
-            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v',max,'(.webr|.web-r)','--exclude','*2160*',
+            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v','(.webr|.web-r)','--exclude','*2160*',
             '--exclude','*1080*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
         '*[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
         elif self.get_type()=="webr480":
-            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v',max,'(.webr|.web-r)','--exclude','*2160*',
+            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v','(.webr|.web-r)','--exclude','*2160*',
             '--exclude','*1080*','--exclude','*720*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
         '*[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
         elif self.get_type()=="webdl2160":
-            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v',max,'(.web-dl|.webdl)','--exclude','*1080*',
+            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v','(.web-dl|.webdl)','--exclude','*1080*',
             '--exclude','*720*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
         '*[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
         elif self.get_type()=="webdl1080":
-            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v',max,'(.web-dl|.webdl)','--exclude','*2160*',
+            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v','(.web-dl|.webdl)','--exclude','*2160*',
             '--exclude','*720*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
         '*[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
         elif self.get_type()=="webdl720":
-            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v',max,'(.web-dl|.webdl)','--exclude','*2160*',
+            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v','(.web-dl|.webdl)','--exclude','*2160*',
             '--exclude','*1080*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
         '*[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
         elif self.get_type()=="webdl480":
-            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v',max,'(.web-dl|.webdl)','--exclude','*2160*',
+            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v','(.web-dl|.webdl)','--exclude','*2160*',
             '--exclude','*1080*','--exclude','*720*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
         '*[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
         elif self.get_type()=="web2160":
-            temp=subprocess.check_output([fd,'-d','1','--glob','-e','.mkv','-e','.mp4','-e','.m4v',max,'*.[wW][eE][bB].*','--exclude','*1080*',
+            temp=subprocess.check_output([fd,'-d','1','--glob','-e','.mkv','-e','.mp4','-e','.m4v','*.[wW][eE][bB].*','--exclude','*1080*',
             '--exclude','*720*','--exclude','*480*','--exclude','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude','*[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
         elif self.get_type()=="web1080":
-            temp=subprocess.check_output([fd,'-d','1','--glob','-e','.mkv','-e','.mp4','-e','.m4v',max,'*.[wW][eE][bB].*','--exclude','*2160*',
+            temp=subprocess.check_output([fd,'-d','1','--glob','-e','.mkv','-e','.mp4','-e','.m4v','*.[wW][eE][bB].*','--exclude','*2160*',
             '--exclude','*720*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude','*[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
         elif self.get_type()=="web720":
-            temp=subprocess.check_output([fd,'-d','1','--glob','-e','.mkv','-e','.mp4','-e','.m4v',max,'*.[wW][eE][bB].*','--exclude','*2160*',
+            temp=subprocess.check_output([fd,'-d','1','--glob','-e','.mkv','-e','.mp4','-e','.m4v','*.[wW][eE][bB].*','--exclude','*2160*',
             '--exclude','*1080*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude','[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
         elif self.get_type()=="web480":
-            temp=subprocess.check_output([fd,'-d','1','--glob','-e','.mkv','-e','.mp4','-e','.m4v',max,'*.[wW][eE][bB].*','--exclude','*2160*',
+            temp=subprocess.check_output([fd,'-d','1','--glob','-e','.mkv','-e','.mp4','-e','.m4v','*.[wW][eE][bB].*','--exclude','*2160*',
             '--exclude','*1080*','--exclude','*720*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude','[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
 
 
 
 
         elif self.get_type()=="tv2160":
-            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v',max,'hdtv','--exclude','*1080*',
+            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v','hdtv','--exclude','*1080*',
             '--exclude','*720*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude','*[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
         elif self.get_type()=="tv1080":
-            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v',max,'hdtv','--exclude','*2160*',
+            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v','hdtv','--exclude','*2160*',
             '--exclude','*720*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude','*[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
         elif self.get_type()=="tv720":
-            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v',max,'hdtv','--exclude','*1080*',
+            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v','hdtv','--exclude','*1080*',
             '--exclude','*2160*','--exclude','*480*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude','*[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
         elif self.get_type()=="tv480":
-            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v',max,'hdtv','--exclude','*1080*',
+            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v','hdtv','--exclude','*1080*',
             '--exclude','*2160*','--exclude','*720*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude','*[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
 
         elif self.get_type()=="other2160":
-            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v',max,'tv','--exclude','*1080*',
+            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v','tv','--exclude','*1080*',
             '--exclude','*720*','--exclude','*480*','--exclude','*[rR][eE][mM][uU][xX]*','--exclude','*.[wW][eE][bB]*','--exclude','*.[bB][lL][uU]*','--exclude','*[tT][vV]*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
             '*[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
         elif self.get_type()=="other1080":
-            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v',max,'tv','--exclude','*2160*',
+            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v','tv','--exclude','*2160*',
             '--exclude','*720*','--exclude','*480*','--exclude','*[rR][eE][mM][uU][xX]*','--exclude','*.[wW][eE][bB]*','--exclude','*.[bB][lL][uU]*','--exclude','*[tT][vV]*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
             '*[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
         elif self.get_type()=="other720":
-            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v',max,'tv','--exclude','*1080*',
+            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v','tv','--exclude','*1080*',
             '--exclude','*2160*','--exclude','*480*','--exclude','*[rR][eE][mM][uU][xX]*','--exclude','*.[wW][eE][bB]*','--exclude','*.[bB][lL][uU]*','--exclude','*[tT][vV]*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
             '*[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
         elif self.get_type()=="other480":
-            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v',max,'tv','--exclude','*1080*',
+            temp=subprocess.check_output([fd,'-d','1','-e','.mkv','-e','.mp4','-e','.m4v','tv','--exclude','*1080*',
             '--exclude','*2160*','--exclude','*720*','--exclude','480','--exclude','*[rR][eE][mM][uU][xX]*','--exclude','*.[wW][eE][bB]*','--exclude','*.[bB][lL][uU]*','--exclude','*[tT][vV]*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
             '*[tT][rR][aA][iL][eE][rR]*']).decode('utf-8')
         files.write(temp.rstrip())
         self.files=files
 
     def get_first(self):
-        self.get_files().seek(0, 0)
         files=self.get_files()
         try:
+            files.seek(0, 0)
             first=files.readlines()[0]
             return first
         except:
             return "No Files"
+
+"""
+General Functions
+"""
+
 def duperemove(txt):
     print("Removing Duplicate lines from ",txt)
+    if txt==None:
+        return
     input=open(txt,"r")
     lines_seen = set() # holds lines already seen
     for line in input:
@@ -313,7 +346,6 @@ def duperemove(txt):
     for line in lines_seen:
         outfile.write(line)
     outfile.close()
-
 
 def get_url(arguments,guessitinfo):
     jackett=arguments['--url'] +"jackett/api/v2.0/indexers/"
@@ -338,14 +370,78 @@ def get_url(arguments,guessitinfo):
         return
     return url
 
+def difference(value1,value2):
+    dif=abs((value2-value1)/((value1+value2)/2))
+    return dif
+
+def releasetype(arguments):
+    source={'remux':'yes','web':'yes','blu':'yes','tv':'yes','other':'yes'}
+    for element in arguments['--exclude']:
+        try:
+            source[element]="No"
+        except KeyError:
+            pass
+    return source
+
+def createconfig(arguments):
+    try:
+        configpath=arguments.get('--config')
+        config.read(configpath)
+    except:
+        return arguments
+    if arguments['--txt']==None:
+        arguments['--txt']=config['general']['txt']
+    if arguments['--fd']=="fd":
+        arguments['--fd']=config['general']['fd']
+    if arguments['--site']==None:
+        arguments['--site']=config['grab']['site']
+    if arguments['--api']==None:
+        arguments['--api']=config['grab']['api']
+    if arguments['--torrent']==None:
+        arguments['--torrent']=config['grab']['torrent']
+    if arguments['--output']==None:
+        arguments['--output']=config['grab']['output']
+    if arguments['--output2']==None:
+        arguments['--output2']=config['grab']['output2']
+    if arguments['--exclude']==[] or  arguments['--exclude']==None:
+        arguments['--exclude']=config['grab']['exclude']
+    if arguments['--mvr']==[] or  arguments['--mvr']==None:
+        arguments['--mvr']=config['scan']['mvr']
+    if arguments['--tvr']==[] or  arguments['--tvr']==None:
+        arguments['--tvr']=config['scan']['tvr']
+    if arguments['--ignore']==[] or arguments['--ignore']==None:
+        arguments['--ignore']=config['scan']['ignore']
+    if arguments['--size']=="1":
+        arguments['--size']=config['grab']['size']
+    return arguments
+
+def set_filter(arguments):
+    if arguments.get('--config') == None and arguments['--filter'] == None:
+        arguments['--filter'] = "2"
+    # IF commandline is None
+    elif arguments['--filter'] == None and (int(config['grab']['filter']) < 5 and int(config['grab']['filter']) > 0):
+        arguments['--filter'] = config['grab']['filter']
+    elif arguments['--filter'] == None and (int(config['grab']['filter']) > 5 or int(config['grab']['filter']) < 0):
+        arguments['--filter'] = "2"
+        print("Defaulting to filter 2,pick number between 1-5")
+    # if commandline is not none
+    elif arguments['--filter'] > 5 or arguments['--filter'] < 0:
+        arguments['--filter'] = "2"
+        print("Defaulting to filter 2,pick number between 1-5")
+    return arguments
+
+
+
+"""
+Cross Seed Torrent or Output Functions
+"""
 
 def get_matches(arguments,files):
     torrentfolder=arguments['--torrent']
     site=arguments['--site']
     datefilter=(date.today()- timedelta(int(arguments['--date'])))
     file=files.get_first()
-    file=files.get_first()
-    size=files.get_size()
+    filesize=files.get_size()
     if file=="No Files":
         return
     fileguessit=guessitinfo(file)
@@ -374,37 +470,36 @@ def get_matches(arguments,files):
         print("Error Creating Search Url")
 
     for i in range(max):
-        title=None
-        filedate=None
-        group=None
-        season=None
-        resolution=None
-        source=None
-        filesize=None
+        title=False
+        filedate=False
+        group=False
+        resolution=False
+        source=False
+        sizematch=False
         if loop: element = results['rss']['channel']['item'][i]
-        matchtitle=element['title']
-        if matchtitle==None:
+        querytitle=element['title']
+        if querytitle==None:
             continue
-        matchdate=datetime.strptime(element['pubDate'], '%a, %d %b %Y %H:%M:%S %z').date()
-        matchsize=int(element['size'])
-        matchguessit=guessitinfo(matchtitle)
-        matchguessit.set_values()
+        querydate=datetime.strptime(element['pubDate'], '%a, %d %b %Y %H:%M:%S %z').date()
+        querysize=int(element['size'])
+        queryguessit=guessitinfo(querytitle)
+        queryguessit.set_values()
         link=element['link']
-        if matchguessit.get_name()==fileguessit.get_name():
+        if queryguessit.get_name()==fileguessit.get_name():
             title=True
-        if matchguessit.get_source()==fileguessit.get_source():
+        if queryguessit.get_source()==fileguessit.get_source():
             source=True
-        if matchguessit.get_group()==fileguessit.get_group():
+        if queryguessit.get_group()==fileguessit.get_group():
             group=True
-        if matchguessit.get_resolution()==fileguessit.get_resolution():
+        if queryguessit.get_resolution()==fileguessit.get_resolution():
             resolution=True
-        if matchguessit.get_season_num()!=fileguessit.get_season_num():
+        if queryguessit.get_season_num()!=fileguessit.get_season_num():
             season=True
-        if datefilter < matchdate:
+        if datefilter < querydate:
             filedate=True
-        if difference(matchsize,size)<.01:
-            filesize=True
-        if title is True and source is True and group is True and resolution is True and filedate is True or filedate is True and group is True and filesize is True and size!=0:
+        if difference(querysize,filesize)<.01:
+            sizematch=True
+        if (title is True and source is True and group is True and resolution is True and filedate is True) or (filedate is True and group is True and sizematch is True and filesize!=0):
             pass
         else:
             continue
@@ -413,79 +508,14 @@ def get_matches(arguments,files):
             print("writing to file:",arguments['--output'])
             t.write(link+'\n')
         if arguments['--torrent']!=None and arguments['--torrent']!="" :
-            torrent=torrentfolder + ("["+site+"]"+ matchtitle +".torrent").replace("/", "_")
+            torrent=torrentfolder + ("["+site+"]"+ querytitle +".torrent").replace("/", "_")
             print(torrent)
             try:
                 subprocess.run(['wget',link,'-O',torrent])
             except:
                 print("web error")
 
-
-def set_ignored(arguments,ignore):
-    arg=arguments['--ignore'].split(',')
-    ignore=open(ignore,"a+")
-    if arg==None:
-        return
-    for element in arg:
-        ignore.write(element)
-        ignore.write('\n')
-
-def searchtv(arguments,ignorefile):
-  if arguments['--tvr']==[] or arguments['--tvr']==None:
-    return
-  folders=open(arguments['--txt'],"a+")
-  print("Adding TV Folders to txt")
-  for root in arguments['--tvr'].split(','):
-      if os.path.isdir(root)==False:
-          print("is not valid directory")
-          continue
-      temp=subprocess.check_output([arguments['--fd'],'Season\s[0-9][0-9]$','-t','d','--full-path',root,'--ignore-file',ignorefile]).decode('utf-8')
-      folders.write(temp)
-      print(temp)
-  print("Done")
-
-
-def searchmovies(arguments,ignorefile):
-    if arguments['--mvr']==[] or arguments['--mvr']==None:
-        return
-    folders=open(arguments['--txt'],"a+")
-    print("Adding Movies Folders to txt")
-    for root in arguments['--mvr'].split(','):
-        if os.path.isdir(root)==False:
-            print("is not valid directory")
-            continue
-        temp=subprocess.check_output([arguments['--fd'],'\)$','-t','d','--full-path',root,'--ignore-file',ignorefile]).decode('utf-8')
-        folders.write(temp)
-        print(temp)
-    print("Done")
-
-def set_max(arguments):
-
-    if arguments['--size']=="t" or arguments['--size']=='1' or arguments['--size']=="true" or arguments['--size']=="True":
-        max="--max-results=100"
-    elif arguments['--size']=="f" or arguments['--size']=="false" or arguments['--size']=="False":
-        max="--max-results=1"
-    else:
-        print(arguments['--size'],"is not a valid value for size")
-        quit()
-    return max
-def difference(value1,value2):
-    dif=abs((value2-value1)/((value1+value2)/2))
-    return dif
-
-def releasetype(arguments):
-    source={'remux':'yes','web':'yes','blu':'yes','tv':'yes','other':'yes'}
-    for element in arguments['--exclude']:
-        try:
-            source[element]="No"
-        except KeyError:
-            pass
-    return source
-
-
-
 def download(arguments,txt):
-    max=set_max(arguments)
     folders=open(txt,"r")
     source=releasetype(arguments)
 
@@ -495,225 +525,513 @@ def download(arguments,txt):
             continue
         if source['remux']=='yes':
             files=tempfile.NamedTemporaryFile('w+')
-            remux1=Folder(line,"remux1080",max,arguments)
+            remux1=Folder(line,"remux1080",arguments)
             remux1.set_files(files)
             remux1.set_size()
             get_matches(arguments,remux1)
-            #files.close()
+            files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
-            remux2=Folder(line,"remux2160",max,arguments)
+            remux2=Folder(line,"remux2160",arguments)
             remux2.set_files(files)
             remux2.set_size()
             get_matches(arguments,remux2)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
-            remux3=Folder(line,"remux720",max,arguments)
+            remux3=Folder(line,"remux720",arguments)
             remux3.set_files(files)
             remux3.set_size()
             get_matches(arguments,remux3)
             files.close()
         if source['blu']=='yes':
             files=tempfile.NamedTemporaryFile('w+')
-            blu1=Folder(line,"blu1080",max,arguments)
+            blu1=Folder(line,"blu1080",arguments)
             blu1.set_files(files)
             blu1.set_size()
             get_matches(arguments,blu1)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
-            blu2=Folder(line,"blu2160",max,arguments)
+            blu2=Folder(line,"blu2160",arguments)
             blu2.set_files(files)
             blu2.set_size()
             get_matches(arguments,blu2)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
-            blu3=Folder(line,"blu720",max,arguments)
+            blu3=Folder(line,"blu720",arguments)
             blu3.set_files(files)
             blu3.set_size()
             get_matches(arguments,blu3)
             files.close()
         if source['tv']=='yes':
             files=tempfile.NamedTemporaryFile('w+')
-            tv1=Folder(line,"tv1080",max,arguments)
+            tv1=Folder(line,"tv1080",arguments)
             tv1.set_files(files)
             tv1.set_size()
             get_matches(arguments,tv1)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
-            tv2=Folder(line,"tv2160",max,arguments)
+            tv2=Folder(line,"tv2160",arguments)
             tv2.set_files(files)
             tv2.set_size()
             get_matches(arguments,tv2)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
-            tv3=Folder(line,"tv720",max,arguments)
+            tv3=Folder(line,"tv720",arguments)
             tv3.set_files(files)
             tv3.set_size()
             get_matches(arguments,tv3)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
-            tv4=Folder(line,"tv480",max,arguments)
+            tv4=Folder(line,"tv480",arguments)
             tv4.set_files(files)
             tv4.set_size()
             get_matches(arguments,tv4)
             files.close()
         if source['other']=='yes':
             files=tempfile.NamedTemporaryFile('w+')
-            other1=Folder(line,"other1080",max,arguments)
+            other1=Folder(line,"other1080",arguments)
             other1.set_files(files)
             other1.set_size()
             get_matches(arguments,other1)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
-            other2=Folder(line,"other2160",max,arguments)
+            other2=Folder(line,"other2160",arguments)
             other2.set_files(files)
             other2.set_size()
             get_matches(arguments,other2)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
-            other3=Folder(line,"other720",max,arguments)
+            other3=Folder(line,"other720",arguments)
             other3.set_files(files)
             other3.set_size()
             get_matches(arguments,other3)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
-            other4=Folder(line,"other480",max,arguments)
+            other4=Folder(line,"other480",arguments)
             other4.set_files(files)
             other4.set_size()
             get_matches(arguments,other4)
             files.close()
         if source['web']=='yes':
             files=tempfile.NamedTemporaryFile('w+')
-            web1=Folder(line,"web1080",max,arguments)
+            web1=Folder(line,"web1080",arguments)
             web1.set_files(files)
             web1.set_size()
             get_matches(arguments,web1)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
-            web2=Folder(line,"web2160",max,arguments)
+            web2=Folder(line,"web2160",arguments)
             web2.set_files(files)
             web2.set_size()
             get_matches(arguments,web2)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
-            web3=Folder(line,"web720",max,arguments)
+            web3=Folder(line,"web720",arguments)
             web3.set_files(files)
             web3.set_size()
             get_matches(arguments,web3)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
-            web4=Folder(line,"web480",max,arguments)
+            web4=Folder(line,"web480",arguments)
             web4.set_files(files)
             web4.set_size()
             get_matches(arguments,web4)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
-            webr1=Folder(line,"webr1080",max,arguments)
+            webr1=Folder(line,"webr1080",arguments)
             webr1.set_files(files)
             webr1.set_size()
             get_matches(arguments,webr1)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
-            webr2=Folder(line,"webr2160",max,arguments)
+            webr2=Folder(line,"webr2160",arguments)
             webr2.set_files(files)
             webr2.set_size()
             get_matches(arguments,webr2)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
-            webr3=Folder(line,"webr720",max,arguments)
+            webr3=Folder(line,"webr720",arguments)
             webr3.set_files(files)
             webr3.set_size()
             get_matches(arguments,webr3)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
-            webr4=Folder(line,"webr480",max,arguments)
+            webr4=Folder(line,"webr480",arguments)
             webr4.set_files(files)
             webr4.set_size()
             get_matches(arguments,webr4)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
-            webdl1=Folder(line,"webdl1080",max,arguments)
+            webdl1=Folder(line,"webdl1080",arguments)
             webdl1.set_files(files)
             webdl1.set_size()
             get_matches(arguments,webdl1)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
-            webdl2=Folder(line,"webdl2160",max,arguments)
+            webdl2=Folder(line,"webdl2160",arguments)
             webdl2.set_files(files)
             webdl2.set_size()
             get_matches(arguments,webdl2)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
-            webdl3=Folder(line,"webdl720",max,arguments)
+            webdl3=Folder(line,"webdl720",arguments)
             webdl3.set_files(files)
             webdl3.set_size()
             get_matches(arguments,webdl3)
             files.close()
 
             files=tempfile.NamedTemporaryFile('w+')
-            webdl4=Folder(line,"webdl480",max,arguments)
+            webdl4=Folder(line,"webdl480",arguments)
             webdl4.set_files(files)
             webdl4.set_size()
             get_matches(arguments,webdl4)
             files.close()
-        # time.sleep( 5 )
+        time.sleep( 3 )
+        print("Waiting 3 Seconds")
+
+"""
+Missing Files on AHD functions
+"""
+def scan_folder(arguments,txt):
+    folders=open(txt,"r")
+    source=releasetype(arguments)
+    for line in folders:
+        print('\n',line)
+        if line=='\n':
+            continue
+        if source['remux']=='yes':
+            files=tempfile.NamedTemporaryFile('w+')
+            remux1=Folder(line,"remux1080",arguments)
+            remux1.set_files(files)
+            get_missing(arguments,remux1)
+            files.close()
+
+            files=tempfile.NamedTemporaryFile('w+')
+            remux2=Folder(line,"remux2160",arguments)
+            remux2.set_files(files)
+
+            get_missing(arguments,remux2)
+            files.close()
+
+            files=tempfile.NamedTemporaryFile('w+')
+            remux3=Folder(line,"remux720",arguments)
+            get_missing(arguments,remux3)
+            files.close()
+        if source['blu']=='yes':
+            files=tempfile.NamedTemporaryFile('w+')
+            blu1=Folder(line,"blu1080",arguments)
+            blu1.set_files(files)
+
+            get_missing(arguments,blu1)
+            files.close()
+
+            files=tempfile.NamedTemporaryFile('w+')
+            blu2=Folder(line,"blu2160",arguments)
+            blu2.set_files(files)
+
+            get_missing(arguments,blu2)
+            files.close()
+
+            files=tempfile.NamedTemporaryFile('w+')
+            blu3=Folder(line,"blu720",arguments)
+            blu3.set_files(files)
+
+            get_missing(arguments,blu3)
+            files.close()
+        if source['tv']=='yes':
+            files=tempfile.NamedTemporaryFile('w+')
+            tv1=Folder(line,"tv1080",arguments)
+            tv1.set_files(files)
+
+            get_missing(arguments,tv1,True)
+            files.close()
+
+            files=tempfile.NamedTemporaryFile('w+')
+            tv2=Folder(line,"tv2160",arguments)
+            tv2.set_files(files)
+
+            get_missing(arguments,tv2,True)
+            files.close()
+
+            files=tempfile.NamedTemporaryFile('w+')
+            tv3=Folder(line,"tv720",arguments)
+            tv3.set_files(files)
+
+            get_missing(arguments,tv3,True)
+            files.close()
+
+            files=tempfile.NamedTemporaryFile('w+')
+            tv4=Folder(line,"tv480",arguments)
+            tv4.set_files(files)
+
+            get_missing(arguments,tv4,True)
+            files.close()
+        if source['other']=='yes':
+            files=tempfile.NamedTemporaryFile('w+')
+            other1=Folder(line,"other1080",arguments)
+            other1.set_files(files)
+
+            get_missing(arguments,other1,True)
+            files.close()
+
+            files=tempfile.NamedTemporaryFile('w+')
+            other2=Folder(line,"other2160",arguments)
+            other2.set_files(files)
+
+            get_missing(arguments,other2,True)
+            files.close()
+
+            files=tempfile.NamedTemporaryFile('w+')
+            other3=Folder(line,"other720",arguments)
+            other3.set_files(files)
+
+            get_missing(arguments,other3,True)
+            files.close()
+
+            files=tempfile.NamedTemporaryFile('w+')
+            other4=Folder(line,"other480",arguments)
+            other4.set_files(files)
+
+            get_missing(arguments,other4,True)
+            files.close()
+        if source['web']=='yes':
+            files=tempfile.NamedTemporaryFile('w+')
+            web1=Folder(line,"web1080",arguments)
+            web1.set_files(files)
+
+            get_missing(arguments,web1,True)
+            files.close()
+
+            files=tempfile.NamedTemporaryFile('w+')
+            web2=Folder(line,"web2160",arguments)
+            web2.set_files(files)
+
+            get_missing(arguments,web2,True)
+            files.close()
+
+            files=tempfile.NamedTemporaryFile('w+')
+            web3=Folder(line,"web720",arguments)
+            web3.set_files(files)
+
+            get_missing(arguments,web3,True)
+            files.close()
+
+            files=tempfile.NamedTemporaryFile('w+')
+            web4=Folder(line,"web480",arguments)
+            web4.set_files(files)
+
+            get_missing(arguments,web4,True)
+            files.close()
+
+            files=tempfile.NamedTemporaryFile('w+')
+            webr1=Folder(line,"webr1080",arguments)
+            webr1.set_files(files)
+
+            get_missing(arguments,webr1,True)
+            files.close()
+
+            files=tempfile.NamedTemporaryFile('w+')
+            webr2=Folder(line,"webr2160",arguments)
+            webr2.set_files(files)
+
+            get_missing(arguments,webr2,True)
+            files.close()
+
+            files=tempfile.NamedTemporaryFile('w+')
+            webr3=Folder(line,"webr720",arguments)
+            webr3.set_files(files)
+
+            get_missing(arguments,webr3,True)
+            files.close()
+
+            files=tempfile.NamedTemporaryFile('w+')
+            webr4=Folder(line,"webr480",arguments)
+            webr4.set_files(files)
+
+            get_missing(arguments,webr4,True)
+            files.close()
+
+            files=tempfile.NamedTemporaryFile('w+')
+            webdl1=Folder(line,"webdl1080",arguments)
+            webdl1.set_files(files)
+
+            get_missing(arguments,webdl1)
+            files.close()
+
+            files=tempfile.NamedTemporaryFile('w+')
+            webdl2=Folder(line,"webdl2160",arguments)
+            webdl2.set_files(files)
+            webdl2.set_size()
+            get_missing(arguments,webdl2)
+            files.close()
+
+            files=tempfile.NamedTemporaryFile('w+')
+            webdl3=Folder(line,"webdl720",arguments)
+            webdl3.set_files(files)
+            webdl3.set_size()
+            get_missing(arguments,webdl3)
+            files.close()
+
+            files=tempfile.NamedTemporaryFile('w+')
+            webdl4=Folder(line,"webdl480",arguments)
+            webdl4.set_files(files)
+            webdl4.set_size()
+            get_missing(arguments,webdl4)
+            files.close()
         # print("Waiting 5 Seconds")
+        # time.sleep(5)
 
-def createconfig(arguments):
+def get_missing(arguments,files,encode=None):
+    if encode==None:
+        encode=False
+    site=arguments['--site']
+    output=arguments['--output2']
+    file=files.get_first()
+    filesize=files.get_size()
+    if file=="No Files":
+        return
+    fileguessit=guessitinfo(file)
+    fileguessit.set_values()
+    search=get_url(arguments,fileguessit)
+    print("Searching with:",search)
     try:
-        configpath=arguments.get('--config')
-        config.read(configpath)
+        response = requests.get(search, timeout=120)
     except:
-        return arguments
-    if arguments['--txt']==None:
-        arguments['--txt']=config['general']['txt']
-    if arguments['--fd']=="fd":
-        arguments['--fd']=config['general']['fd']
-    if arguments['--site']==None:
-        arguments['--site']=config['grab']['site']
-    if arguments['--api']==None:
-        arguments['--api']=config['grab']['api']
-    if arguments['--torrent']==None:
-        arguments['--torrent']=config['grab']['torrent']
-    if arguments['--output']==None:
-        arguments['--output']=config['grab']['output']
-    if arguments['--exclude']==[] or  arguments['--exclude']==None:
-        arguments['--exclude']=config['grab']['exclude']
-    if arguments['--mvr']==[] or  arguments['--mvr']==None:
-        arguments['--mvr']=config['scan']['mvr']
-    if arguments['--tvr']==[] or  arguments['--tvr']==None:
-        arguments['--tvr']=config['scan']['tvr']
-    if arguments['--ignore']==[] or arguments['--ignore']==None:
-        arguments['--ignore']=config['scan']['ignore']
-    if arguments['--size']=="1":
-        arguments['--size']=config['grab']['size']
-    return arguments
+        print("Issue getting response:",search)
+        return
+    results=xmltodict.parse(response.content)
+    try:
+        results['rss']['channel']['item'][1]['title']
+        loop=True
+        max=len(results['rss']['channel']['item'])
+    except KeyError as key:
+        if str(key)=="1":
+            element=results['rss']['channel']['item']
+            max=1
+            loop=False
+        else:
 
-def set_filter(arguments):
-    if arguments['--filter']==None and int(config['grab']['filter'])>5:
-        arguments['--filter']="2"
-    elif arguments['--filter']==None and int(config['grab']['filter'])<5:
-        arguments['--filter']=config['grab']['filter']
-    return arguments
+            print("Probably no results")
+            print("Adding Potential Upload to File")
+            output=open(output,"a+")
+            output.write(files.get_dir())
+            output.write(":")
+            output.write(file)
+            output.write('\n')
+            output.close()
+            return
+    except:
+        print("Error Creating Search Url")
+
+    for i in range(max):
+        title=False
+        group=False
+        resolution=False
+        source=False
+        sizematch=False
+        if loop: element = results['rss']['channel']['item'][i]
+        querytitle=element['title']
+        if querytitle==None:
+            continue
+        querydate=datetime.strptime(element['pubDate'], '%a, %d %b %Y %H:%M:%S %z').date()
+        querysize=int(element['size'])
+        queryguessit=guessitinfo(querytitle)
+        queryguessit.set_values()
+        link=element['link']
+        if queryguessit.get_name()==fileguessit.get_name():
+            title=True
+        if queryguessit.get_source()==fileguessit.get_source():
+            source=True
+        if queryguessit.get_group()==fileguessit.get_group():
+            group=True
+        if queryguessit.get_resolution()==fileguessit.get_resolution():
+            resolution=True
+        if queryguessit.get_season_num()!=fileguessit.get_season_num():
+            season=True
+        if difference(querysize,filesize)<.01:
+            sizematch=True
+        if (title is True and source is True and group is True and resolution is True) or (group is True and sizematch is True and filesize!=0):
+            return
+        if (encode==False and title is True and source is True  and resolution is True):
+            return
+    print("Adding Potential Upload to File")
+    output=open(output,"a+")
+    output.write(files.get_dir())
+    output.write(":")
+    output.write(file)
+    output.write('\n')
+    output.close()
+
+"""
+Scanning Functions
+"""
+def set_ignored(arguments,ignore):
+    if ignore==None:
+       return
+    try:
+        ignorelist=arguments['--ignore'].split(',')
+    except:
+         ignorelist=arguments['--ignore']
+    if len(ignorelist)==0:
+        return
+    open(ignore,"w+").close()
+    ignore=open(ignore,"a+")
+    print(len(ignorelist))
+    for element in ignorelist:
+        ignore.write(element)
+        ignore.write('\n')
+
+def searchtv(arguments,ignorefile):
+    if arguments['--tvr']==[] or arguments['--tvr']==None:
+        return
+    folders=open(arguments['--txt'],"a+")
+    print("Adding TV Folders to txt")
+    try:
+        list=arguments['--tvr'].split(',')
+    except:
+        list=arguments['--tvr']
+    for root in list:
+        if os.path.isdir(root)==False:
+          print("is not valid directory")
+          continue
+        temp=subprocess.run([arguments['--fd'],'Season\s[0-9][0-9]$','-t','d','--full-path',root,'--ignore-file',ignorefile],stdout=folders)
+    print("Done")
+
+def searchmovies(arguments,ignorefile):
+    if arguments['--mvr']==[] or arguments['--mvr']==None:
+        return
+    folders=open(arguments['--txt'],"a+")
+    print("Adding Movies Folders to txt")
+    try:
+        list=arguments['--tvr'].split(',')
+    except:
+        list=arguments['--tvr']
+    for root in list:
+        if os.path.isdir(root)==False:
+            print("is not valid directory")
+            continue
+        temp=subprocess.run([arguments['--fd'],'\)$','-t','d','--full-path',root,'--ignore-file',ignorefile],stdout=folders)
+    print("Done")
+
 
 if __name__ == '__main__':
     arguments = docopt(__doc__, version='cross_seed_scan 1.2')
@@ -721,7 +1039,7 @@ if __name__ == '__main__':
     set_filter(arguments)
     file=arguments['--txt']
     try:
-        open(file,"r").close()
+        open(file,"a+").close()
     except:
         print("No txt file")
         quit()
@@ -730,15 +1048,30 @@ if __name__ == '__main__':
         print("Scanning for folders")
         if arguments['--delete']:
             open(file, 'w').close()
-        ignorefile=os.environ['HOME'] + "/.fdignore"
-        set_ignored(arguments,ignorefile)
-        duperemove(ignorefile)
-        searchtv(arguments,ignorefile)
-        searchmovies(arguments,ignorefile)
+        fdignore=arguments.get('--fdignore')
+        if fdignore==None:
+            try:
+                fdignore=os.environ['HOME'] + "/.fdignore"
+                print("fdignore set to",fdignore)
+            except:
+                print("You might be on windows make sure to pass --fdignore option")
+                exit()
+        set_ignored(arguments,fdignore)
+        duperemove(fdignore)
+        searchtv(arguments,fdignore)
+        searchmovies(arguments,fdignore)
         duperemove(file)
     elif arguments['grab']:
         for element in arguments['--site'].split(','):
             arguments['--site']=element
             download(arguments,file)
+    elif arguments['missing']:
+        if arguments['--output2']=='':
+            print("output2 must be configured for missing scan ")
+            quit()
+        for element in arguments['--site'].split(','):
+            arguments['--site']=element
+            scan_folder(arguments,file)
+        duperemove(arguments['--output2'])
     elif arguments['dedupe']:
         duperemove(arguments['--txt'])
