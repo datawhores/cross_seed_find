@@ -72,7 +72,7 @@ Downloading:cross.py grab --txt=(txtlocation) --torrent (torrents_download)  --a
     --fd fd is a program for finding files if you can't install to system path you can put the location of the binary using this option. Note: a binary is included in this repo
 
 
-missing:cross.py grab --txt=(txtlocation) --api (apikey) --site (jackett_sitename) --output2
+missing:cross.py grab --txt=(txtlocation) --api (apikey) --site (jackett_sitename) --output2 --api <apikey> 
     
 ```
     This is meant to find files in your libary that can potentially be uploaded to a site. Note the get_missing file has a section marked, that can and should be changed based on site. It would be impossible to make this work easily with the vast variety of site rules out their. However, the default assumes that a site only allows one of every type of upload.
