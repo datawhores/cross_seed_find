@@ -23,7 +23,7 @@ Options:
   --config <config> commandline overwrites config
   --fdignore <gitignore_style_ignorefile> fd .fdignore file used by fd tto find which folders to ignore, on linux it defaults to the home directory.
 other OS may need to input this manually
---wget <wget> used to download files
+  --wget <wget> used to download files
   --sites ; -s <jackett_sitesname>  This is the list of sites from Jackett. Names can be gather by clicking on the green search icon next to the entry. List must be comma seperated. Required for scanning and finding uploads.
   --url ; -u <jacketturl_port> This is the url used to access jackett main page. Required for scanning and finding uploads.  [default: http://127.0.0.1:9117/]
 
