@@ -36,9 +36,6 @@ class File:
     def get_encode(self):
         return  self.encode
     def set_size(self):
-        if self.arguments["--size"]==False or self.arguments["--size"]=="F" or self.arguments["--size"]=="false" or self.arguments["--size"]=="f":
-            self.size=0
-            return
         self.size=os.path.getsize(self.get_name())
     def set_valid(self):
         if re.search("[rR][eE][mM][uU][xX]",self.name)!=None and self.source['remux']=='yes':
@@ -92,7 +89,6 @@ class File:
     """
 
 def download_file(arguments,line,source,errorpath):
-    folders=open(txt,"r")
     currentfile=File(line,arguments,source)
     currentfile.set_valid()
     if currentfile.get_valid()==True:
