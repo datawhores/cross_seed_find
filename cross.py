@@ -6,10 +6,10 @@ Usage:
     cross.py interactive [(-h | --help) --txt=<txtlocation> --fd <fd> --wget <wget> --config <config> --delete --lines-skip <num_lines_skipped --fdignore <fd_ignore>]
     [--torrent <torrents_download>  --output <output> --api <apikey> --date <int>  --misstxt <output> --sites <jackett_sites_names>]
     [--root <normal_root> ... --ignore <sub_folders_to_ignore>...]
-    cross.py scan[--txt=<txtlocation> -fd <fd> --wget <wget> --fdignore <fd_ignore> --config <config> --delete]
+    cross.py scan [--txt=<txtlocation> -fd <fd> --wget <wget> --fdignore <fd_ignore> --config <config> --delete]
     [--root <normal_root> ... --ignore <sub_folders_to_ignore>...]
-    cross.py grab[ --txt=<txtlocation> --sites <jackett_sitesname> --url <jacketturl_port> --fd <fd> --wget <wget> --fdignore <fd_ignore> --lines-skip <num_lines_skipped> --torrent <torrents_download> --output <output>]
-    [--api <apikey> --conf ig <config> --date <int> ]
+    cross.py grab [ --txt=<txtlocation> --sites <jackett_sitesname> --url <jacketturl_port> --fd <fd> --wget <wget> --fdignore <fd_ignore> --lines-skip <num_lines_skipped> --torrent <torrents_download> --output <output>]
+    [--api <apikey> --config <config> --date <int> ]
     [--exclude <source_excluded>]...
     cross.py missing [--txt=<txtlocation> --sites <jackett_sitesname> --url <jacketturl_port> --fd <fd> --wget <wget>  --misstxt <output> --api <apikey>][--config <config>]
     [--exclude <source_excluded>...]
@@ -317,7 +317,8 @@ def set_ignored(arguments):
 
         ignore.write(element)
         ignore.write('\n')
-def searchdir(arguments,ignorefile):
+def searchdir(arguments):
+    ignorefile=arguments['--fdignore']
     if arguments['--root']==[] or arguments['--root']==None or len(arguments['--root'])==0:
         return
 
@@ -424,13 +425,13 @@ if __name__ == '__main__':
         setup_binaries(arguments)
         set_ignored(arguments)
         duperemove(arguments['--fdignore'])
-        searchdir(arguments,arguments['--fdignore'])
+        searchdir(arguments)
         duperemove(arguments['--txt'])
     elif arguments['grab']:
         updateargs(arguments)
         setup_txt(arguments)
         setup_binaries(arguments)
-        download(arguments,arguments['--txt'])
+        download(arguments)
     elif arguments['missing']:
         updateargs(arguments)
         setup_txt(arguments)
