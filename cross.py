@@ -3,15 +3,15 @@
 Usage:
     cross.py [(-h | --help) --txt=<txtlocation> --fd <fd> --wget <wget> --config <config> --delete --lines-skip <num_lines_skipped --fdignore <fd_ignore>]
     [--torrent <torrents_download>  --output <output> --api <apikey> --date <int>  --misstxt <output> --sites <jackett_sites_names>]
-    cross.py interactive [(-h | --help) --txt=<txtlocation> --fd <fd> --wget <wget> --config <config> --delete --lines-skip <num_lines_skipped --fdignore <fd_ignore>]
+    cross.py interactive [(-h | --help) --txt=<txtlocation> --fd <fd> --wget <wget> --config <config> --delete --lines-skip <num_lines_skipped --fdignore <fd_ignore> --log <log>]
     [--torrent <torrents_download>  --output <output> --api <apikey> --date <int>  --misstxt <output> --sites <jackett_sites_names>]
     [--root <normal_root> ... --ignore <sub_folders_to_ignore>...]
-    cross.py scan [--txt=<txtlocation> -fd <fd> --wget <wget> --fdignore <fd_ignore> --config <config> --delete]
+    cross.py scan [--txt=<txtlocation> -fd <fd> --wget <wget> --fdignore <fd_ignore> --config <config> --delete --log <log>]
     [--root <normal_root> ... --ignore <sub_folders_to_ignore>...]
-    cross.py grab [ --txt=<txtlocation> --sites <jackett_sitesname> --url <jacketturl_port> --fd <fd> --wget <wget> --fdignore <fd_ignore> --lines-skip <num_lines_skipped> --torrent <torrents_download> --output <output>]
+    cross.py grab [ --txt=<txtlocation> --sites <jackett_sitesname> --url <jacketturl_port> --fd <fd> --wget <wget> --fdignore <fd_ignore> --lines-skip <num_lines_skipped> --torrent <torrents_download> --output <output> --log <log>]
     [--api <apikey> --config <config> --date <int> ]
     [--exclude <source_excluded>]...
-    cross.py missing [--txt=<txtlocation> --sites <jackett_sitesname> --url <jacketturl_port> --fd <fd> --wget <wget>  --misstxt <output> --api <apikey>][--config <config>]
+    cross.py missing [--txt=<txtlocation> --sites <jackett_sitesname> --url <jacketturl_port> --fd <fd> --wget <wget>  --misstxt <output> --api <apikey>][--config <config> --log <log> --lines-skip <num_lines_skipped>]
     [--exclude <source_excluded>...]
 
 
@@ -26,6 +26,7 @@ other OS may need to input this manually
   --wget <wget> used to download files
   --sites ; -s <jackett_sitesname>  This is the list of sites from Jackett. Names can be gather by clicking on the green search icon next to the entry. List must be comma seperated. Required for scanning and finding uploads.
   --url ; -u <jacketturl_port> This is the url used to access jackett main page. Required for scanning and finding uploads.  [default: http://127.0.0.1:9117/]
+ --log ; -<logs> log file
 
 =============================================================================================================================================
 
@@ -51,20 +52,13 @@ other OS may need to input this manually
   --filter ; -f <reduce_query> Some sites don't allow for much filtering in searches: [1:Name + Season(TV) + resolution + source][2:Name + Season(TV) + source]
   [3:Name + Season(TV) + resolution][4:Name + Season(TV)][5:Name]
   Note:Season only matters for TV. Default would be 4(optional)  [default:None]
-
-
-
-
-
-
-
-
-
+=============================================================================================================================================
 
 
   cross.py missing
+
+  <required>
   --misstxt <txt_where_potential_uploads_are written> here we output to a txt file files that don't have any uploads. This means that we can potentially upload these, for rank.
-  Or to increase the amount of cross seeds we have
 
 
 
@@ -91,7 +85,8 @@ from files import *
 from prompt_toolkit.shortcuts import button_dialog
 import sys
 from shutil import which
-
+import logging
+import copy
 """
 Setup Function
 """
@@ -104,13 +99,22 @@ def duperemove(txt):
     input=open(txt,"r")
     lines_seen = set() # holds lines already seen
     for line in input:
+        start=re.search("[a-z]|[0-9]|/",line, re.IGNORECASE)
+        if start==None:
+            continue
+        start=start.start()
+        start=int(start)
+        line=line[start:-1]
         if line not in lines_seen: # not a duplicate
             lines_seen.add(line)
     input.close()
     outfile = open(txt, "w")
+    lines_seen=sorted(lines_seen)
     for line in lines_seen:
+        line=line+"\n"
         outfile.write(line)
     outfile.close()
+    
 def updateargs(arguments):
     configpath=arguments.get('--config')
     if os.path.isfile(configpath)==False:
@@ -125,8 +129,6 @@ def updateargs(arguments):
         return arguments
     if arguments['--txt']==None:
         arguments['--txt']=config['general']['txt']
-    if arguments['--fd']=="fd":
-        arguments['--fd']=config['general']['fd']
     if arguments['--sites']==None:
         arguments['--sites']=config['grab']['sites']
     if arguments['--api']==None:
@@ -147,6 +149,18 @@ def updateargs(arguments):
         arguments['--root']=config['scan']['root']
     if arguments['--ignore']==[] or arguments['--ignore']==None:
         arguments['--ignore']=config['scan']['ignore']
+    if arguments['--log']==None and len(config['general']['log'])!=0:
+            arguments['--log']=config['general']['log']
+    if arguments['--log']==None and len(config['general']['log'])==0:
+            arguments['--log']="INFO"
+    if arguments['--log'].upper() == "DEBUG":
+        logger.setLevel(logging.DEBUG)
+    elif arguments['--log'].upper() == "INFO":
+        logger.setLevel(logging.INFO)
+    else:
+
+        logger.setLevel(logging.WARN)
+    logger.debug(copy.deepcopy(arguments))
     return arguments
 
 
@@ -166,6 +180,8 @@ def releasetype(arguments):
             source[element]="no"
         except KeyError:
             pass
+    logger.debug(source)
+
     return source
 def download(arguments):
     index=0
@@ -173,15 +189,13 @@ def download(arguments):
 
     list=open(txt,"r")
     source=releasetype(arguments)
-    errorfile=errorpath=pathlib.Path(__file__).parent.absolute().as_posix()+"/Errors/"
-    if os.path.isdir(errorfile)==False:
-            os.mkdir(errorfile)
-    errorfile=errorfile+"cross_errors_"+datetime.now().strftime("%m.%d.%Y_%H%M")+".txt"
     for line in list:
         index=index+1
-        print('\n',line)
+        logger.warn(f"Directory or File: {line}\n")
+
         if index<=int(arguments["--lines-skip"]):
-            print("Skipping Line")
+            logger.warn(f"skipping line")
+
             continue
         if line=='\n' or line=="" or len(line)==0:
             continue
@@ -189,57 +203,50 @@ def download(arguments):
 
 
         if os.path.isdir(line)==True:
-            download_folder(arguments,line,source,errorfile)
+            download_folder(arguments,line,source)
         elif os.path.isfile(line)==True:
-            download_file(arguments,line,source,errorfile)
+            download_file(arguments,line,source)
         else:
-            print("File or Dir Not found")
-            errorpath=open(errorfile,"a+")
-            errorstring=line +": File or Dir Not found "  + " - " +datetime.now().strftime("%m.%d.%Y_%H%M") + "\n"
-            errorpath.write(errorstring)
-            errorpath.close()
+            currentdate=datetime.now().strftime("%m.%d.%Y_%H%M")
+            logger.warn(f"{line} File or Directory Not found-{currentdate}")
+
             continue
         print("Waiting 5 Seconds")
-        time.sleep(5)
+        # time.sleep(5)
 def missing(arguments):
     if arguments['--misstxt']=='' or len(arguments['--misstxt'])==0 or arguments['--misstxt']==None:
-        print("misstxt must be configured for missing scan ")
+        logger.warn(f"misstxt must be configured for missing scan ")
         quit()
-    txt=arguments['--txt']
+
     source=releasetype(arguments)
-    list=open(txt,"r")
+    list=open(arguments['--txt'],"r")
     index=0
-    errorfile=pathlib.Path(__file__).parent.absolute().as_posix()+"/Errors/"
-    if os.path.isdir(errorfile)==False:
-            os.mkdir(errorfile)
-    errorfile=errorfile+datetime.now().strftime("%m.%d.%Y_%H%M")+".txt"
 
     for line in list:
         index=index+1
-        print('\n',line)
+        logger.warn(f"Path:{line}\n")
         if index<=int(arguments["--lines-skip"]):
-            print("Skipping Line")
+            logger.warn(f"skipping line")
+            continue
+        if index<=int(arguments["--lines-skip"]):
+            logger.warn(f"skipping line")
             continue
         elif line=='\n' or line=="" or len(line)==0:
             continue
-        if  re.search("#",line)!=None:
-            print("Skipping Line")
-            continue
         line=line.rstrip("\n")
         if os.path.isdir(line)==True:
-            scan_folder(arguments,line,source,errorfile)
+            scan_folder(arguments,line,source)
         elif os.path.isfile(line)==True:
-            scan_file(arguments,line,source,errorfile)
+            scan_file(arguments,line,source)
         else:
-            print("File or Dir Not found")
-            errorpath=open(errorfile,"a+")
-            errorstring=line +": File or Dir Not found "  + " - " +datetime.now().strftime("%m.%d.%Y_%H%M") + "\n"
-            errorpath.write(errorstring)
-            errorpath.close()
+            currentdate=datetime.now().strftime("%m.%d.%Y_%H%M")
+
+            logger.warn(f"{line} File or Directory Not found-{currentdate}")
+
             continue
 
         print("Waiting 5 Seconds")
-        time.sleep(5)
+        # time.sleep(5)
 def setup_txt(arguments,interactive=None):
     if interactive==None:
         interactive=False
@@ -263,11 +270,12 @@ def setup_binaries(arguments):
     if fdignore==None:
         try:
             arguments['--fdignore']=os.path.join(workingdir,".fdignore")
+            t=open(arguments['--fdignore'], 'w')
+            t.close()
         except:
-            print("Error setting fdignore")
+            logger.warn("Error setting up fdignore")
             exit()
-    t=open(arguments['--fdignore'], 'w')
-    t.close()
+
 
     if arguments['--fd']==None and sys.platform=="linux":
         if len(which('fd'))>0:
@@ -280,7 +288,7 @@ def setup_binaries(arguments):
         if len(which('wget'))>0:
             arguments['--wget']=which('wget')
         else:
-            print("Please Install wget")
+            logger.warn("Please Install wget")
             quit()
 
     if arguments['--fd']==None and sys.platform=="win32":
@@ -295,7 +303,10 @@ def setup_binaries(arguments):
             arguments['--wget']=which('wget.exe')
         else:
             wget=os.path.join(workingdir,"bin","wget.exe")
-            arguments['--fd']=wget
+            arguments['--wget']=wget
+        logger.warn(arguments['--fd'])
+        logger.warn(arguments['--wget'])
+        logger.warn(arguments['--fdignore'])
 """
 Scanning Functions
 """
@@ -328,7 +339,7 @@ def searchdir(arguments):
     else:
         shellbool=True
     folders=open(arguments['--txt'],"a+")
-    print("Adding Folders/Files to", arguments['--txt'])
+    logger.warn("Adding Folders/Files to", arguments['--txt'])
     if type(arguments['--root'])==str:
         arguments['--root']=arguments['--root'].split(",")
     list=arguments['--root']
@@ -339,13 +350,35 @@ def searchdir(arguments):
         if os.path.isdir(root)==False:
           print(root," is not valid directory")
           continue
-        os.chdir(root)
-        subprocess.run([arguments['--fd'],'.',root,'-t','d','--max-depth','1','--ignore-file',ignorefile],stdout=folders,shell=shellbool)
-        subprocess.run([arguments['--fd'],'.',root,'-t','f','-e','.mkv','--max-depth','1','--ignore-file',ignorefile],stdout=folders,shell=shellbool)
+        t=subprocess.run([arguments['--fd'],'.',root,'-t','d','--max-depth','1','--ignore-file',ignorefile],stdout=folders,shell=shellbool)
+        t2=subprocess.run([arguments['--fd'],'.',root,'-t','f','-e','.mkv','--max-depth','1','--ignore-file',ignorefile],stdout=folders,shell=shellbool)
+
+        logger.warn(t.stdout)
+        logger.warn(t2.stdout)
+        folders.write(t.stdout)
+        folders.write(t2.stdout)        
+
     print("Done")
 #Main
 if __name__ == '__main__':
-    arguments = docopt(__doc__, version='cross_seed_scan 1.4')
+    workingdir=os.path.dirname(os.path.abspath(__file__))
+    try:
+        os.mkdir(os.path.join(workingdir,"Logs"))
+    except:
+        pass
+
+    arguments = docopt(__doc__, version='cross_seed_scan 1.5')
+    myfilter = filter(arguments)
+    logger = logging.getLogger('Cross_Seed')
+    logger.addFilter(myfilter)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    filehandler=logging.FileHandler(os.path.join(workingdir,"Logs","cross.logs"))
+    filehandler.setFormatter(formatter)
+    streamhandler = logging.StreamHandler()
+    streamhandler.setFormatter(formatter)
+
+    logger.addHandler(filehandler)
+    logger.addHandler(streamhandler)
 #interactive Mode
     if arguments.get("--config")==None:
         arguments['--config']=os.path.dirname(os.path.abspath(__file__))+"/cross.txt"
@@ -385,7 +418,7 @@ if __name__ == '__main__':
                     if t==False:
                         continue
                     duperemove(arguments['--fdignore'])
-                    searchdir(arguments,arguments['--fdignore'])
+                    searchdir(arguments)
                     duperemove(arguments['--txt'])
                 elif continueloop=="missing":
                     t=setup_txt(arguments,True)
@@ -399,7 +432,7 @@ if __name__ == '__main__':
                     if t==False:
                         continue
                     setup_binaries(arguments)
-                    download(arguments,arguments['--txt'])
+                    download(arguments)
                 elif continueloop=="config":
                     arguments['--config']=input_dialog(title='Config Path',text='Please Enter the Path to your Config File:').run()
                     t=setup_txt(arguments,True)
