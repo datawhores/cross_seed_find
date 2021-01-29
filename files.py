@@ -13,7 +13,6 @@ class File:
         self.arguments=arguments
         self.name=file.rstrip("\n")
         self.dir="0"
-        self.date=datetime.now().strftime("%m.%d.%Y")
         self.valid=None
         self.encode=None
         self.type=None
@@ -40,7 +39,7 @@ class File:
     def set_valid(self):
         if re.search("[rR][eE][mM][uU][xX]",self.name)!=None and self.source['remux']=='yes':
             self.valid=True
-        elif re.search("[rR][eE][mM][uU][xX]",self.name)==None and re.search("[bB][lL][uU]",self.name)!=None and self.source['blu']=='yes':
+        elif re.search("[rR][eE][mM][uU][xX]",self.name)==None and (re.search("[bB][lL][uU][rR]",self.name)!=None or re.search("[bB][lL][uU]-[rR]",self.name)!=None) and self.source['blu']=='yes':
             self.valid=True
         elif re.search("[wW][eE][bB]",self.name)!=None and self.source['web']=='yes':
             self.valid=True
@@ -74,7 +73,7 @@ class File:
     def set_encode(self):
         if re.search("[rR][eE][mM][uU][xX]",self.name)!=None and self.source['remux']=='yes':
             self.encode=False
-        elif re.search("[rR][eE][mM][uU][xX]",self.name)==None and re.search("[bB][lL][uU]",self.name)!=None and self.source['blu']=='yes':
+        elif re.search("[rR][eE][mM][uU][xX]",self.name)==None and (re.search("[bB][lL][uU][rR]",self.name)!=None or re.search("[bB][lL][uU][-][rR]",self.name)!=None) and self.source['blu']=='yes':
             self.encode=True
         elif (re.search("[wW][eE][bB]-[rR]",self.name)!=None or re.search("[wW][eE][bB][rR]",self.name)!=None) and self.source['web']=='yes':
             self.encode=True
@@ -88,7 +87,7 @@ class File:
     Scanning File Functions
     """
 
-def download_file(arguments,line,source,errorpath):
+def download_file(arguments,line,source):
     currentfile=File(line,arguments,source)
     currentfile.set_valid()
     if currentfile.get_valid()==True:
@@ -101,16 +100,20 @@ def download_file(arguments,line,source,errorpath):
     """
     Missing files Functions
     """
-def scan_file(arguments,txt,line,source,errorpath):
-    folders=open(txt,"r")
+def scan_file(arguments,line,source):
     currentfile=File(line,arguments,source)
     currentfile.set_valid()
+    ahdlogger.warn(f"Valid for Searching: {currentfile.get_valid()}")
+
+
     if currentfile.get_valid()==True:
         currentfile.set_size()
         currentfile.set_encode()
         currentfile.set_type()
+        logger.warn(f"is an encode: {currentfile.get_encode()}")
+        logger.warn(f"type: {currentfile.get_type()}")
         for site in arguments["--sites"].split(","):
-            get_matches(site,errorpath,arguments,currentfile,currentfile.get_encode())
+            get_missing(site,arguments,currentfile,currentfile.get_encode())
     if currentfile.get_valid()==False:
-        print("Type excluded")
+        logger.warn("Type excluded")
         return
