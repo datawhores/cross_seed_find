@@ -97,7 +97,10 @@ def duperemove(txt):
     if txt==None:
         return
     input=open(txt,"r")
-    lines_seen = set() # holds lines already seen
+    lines_seen = set()
+    symbols=set()
+     # holds lines already seen
+    i=0
     for line in input:
         start=re.search("[a-z]|[0-9]|/",line, re.IGNORECASE)
         if start==None:
@@ -105,16 +108,31 @@ def duperemove(txt):
         start=start.start()
         start=int(start)
         line=line[start:-1]
-        if line not in lines_seen: # not a duplicate
+        if start!=0:
+            symbols.add(i)
+        if  line not in lines_seen:
+            # not a duplicate
             lines_seen.add(line)
+        i=i+1
+
+
+
+
+
+
+
     input.close()
     outfile = open(txt, "w")
     lines_seen=sorted(lines_seen)
+    i=0
     for line in lines_seen:
+        if  i in symbols:
+            line="*"+line
         line=line+"\n"
         outfile.write(line)
+        i=i+1
     outfile.close()
-    
+
 def updateargs(arguments):
     configpath=arguments.get('--config')
     if os.path.isfile(configpath)==False:
@@ -356,7 +374,7 @@ def searchdir(arguments):
         logger.warn(t.stdout)
         logger.warn(t2.stdout)
         folders.write(t.stdout)
-        folders.write(t2.stdout)        
+        folders.write(t2.stdout)
 
     print("Done")
 #Main
