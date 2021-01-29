@@ -103,7 +103,7 @@ def download_file(arguments,line,source):
 def scan_file(arguments,line,source):
     currentfile=File(line,arguments,source)
     currentfile.set_valid()
-    ahdlogger.warn(f"Valid for Searching: {currentfile.get_valid()}")
+    logger.warn(f"Valid for Searching: {currentfile.get_valid()}")
 
 
     if currentfile.get_valid()==True:
