@@ -1,5 +1,7 @@
 from guessit import guessit
 from imdb import IMDb, IMDbError
+import re
+import logging
 """
 General Classes
 """
@@ -37,16 +39,24 @@ class guessitinfo():
     def set_encode(self):
         self.encode=self.get_info().get('video_codec',"")
     def set_source(self):
-        self.source=self.get_info().get('source',"")
+        self.source=self.get_info().get('source',"")        
         try:
             self.source=self.source.lower()
         except:
             pass
-        if self.source == "hd-dvd" or self.source=="ultra hd blu-ray":
-            self.source = 'blu-ray'
+        if self.source== "ultra hd blu-ray" or self.source == "hd-dvd":
+            self.source="blu-ray"
     def set_group(self):
         self.group=self.get_info().get('release_group',"")
+        if type(self.group)==list:
+            self.group=""
+        if re.search("\(",self.group)!=None or re.search("\)",self.group)!=None:
+            self.group=re.sub("\(","",self.group)
+            self.group=re.sub("\)","",self.group)
 
+        if re.search("\[",self.group)!=None or re.search("\]",self.group)!=None:
+            self.group=re.sub("\[","",self.group)
+            self.group=re.sub("\]","",self.group)
         try:
             self.group=self.group.lower()
         except:
@@ -75,3 +85,16 @@ class guessitinfo():
         return self.encode
     def get_source(self):
         return self.source
+class filter(logging.Filter):
+    def __init__(self, arguments):
+        super(filter, self).__init__()
+        self._arguments = arguments
+
+    def filter(self, rec):
+        if rec.msg==None:
+            return 1
+        if type(rec.msg)==dict and rec.msg.get("--api")!=None:
+            rec.msg['--api']=="your_apikey"
+        if  self._arguments['--api'] in rec.msg:
+            rec.msg=re.sub(self._arguments['--api'],"your_apikey",rec.msg)
+        return 1
