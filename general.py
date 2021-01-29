@@ -10,13 +10,18 @@ from prompt_toolkit.shortcuts import button_dialog
 from prompt_toolkit.shortcuts import checkboxlist_dialog
 import os
 import re
+import logging
+logger = logging.getLogger('Cross_Seed')
+
 """
 General Functions
 """
-def get_matches(site,errorfile,arguments,files):
+def get_matches(site,arguments,files):
     wget=arguments['--wget']
     torrentfolder=arguments['--torrent']
     datefilter=(date.today()- timedelta(int(arguments['--date'])))
+    currentdate=datetime.now().strftime("%m.%d.%Y_%H%M")
+
     file=files.get_first()
     if file=="No Files":
         return
@@ -25,37 +30,29 @@ def get_matches(site,errorfile,arguments,files):
     fileguessit.set_values()
     title=fileguessit.get_name().lower()
     search=get_url(arguments,site,fileguessit)
-    print("Searching For",files.type,"with:",search)
+    logger.warn(f"Searching For {files.type} with: {search}:{currentdate}")
     try:
         response = requests.get(search, timeout=300)
     except:
-        errorpath=open(errorfile,"a+")
-        errorstring=title +": Could not find Get a response from"+ site +": +search +"  +files.get_type() + " - " +datetime.now().strftime("%m.%d.%Y_%H%M") + "\n"
-        errorpath.write(errorstring)
-        errorpath.close()
-        print("Issue getting response:",search)
+        logger.warn(f"Issue getting response: {search}:{currentdate}")
         return
     try:
         results=xmltodict.parse(response.content)
     except:
-        errorpath=open(errorfile,"a+")
-        errorstring=title + ": Could not find parse"+ site + " response URL: "+search+" " +files.get_type() + " - " +datetime.now().strftime("%m.%d.%Y_%H%M") + "\n"
-        errorpath.write(errorstring)
-        errorpath.close()
-        print("unable to parse xml")
+        logger.warn(f"{title}: Could not find parse  {site} XML {search} {files.get_type()}-{currentdate}")
+
         return
     try:
         results['rss']['channel']['item'][1]['title']
         loop=True
         max=len(results['rss']['channel']['item'])
     except KeyError as key:
-        print(key)
         if str(key)=="1":
             element=results['rss']['channel']['item']
             max=1
             loop=False
         else:
-            print("Probably no results")
+            logger.warn("Probably no results")
             return
     for i in range(max):
         titlematch=False
@@ -65,56 +62,66 @@ def get_matches(site,errorfile,arguments,files):
         source=False
         sizematch=False
         if loop: element = results['rss']['channel']['item'][i]
-        querytitle=element['title']
-        if querytitle==None:
-            continue
-        querydate=datetime.strptime(element['pubDate'], '%a, %d %b %Y %H:%M:%S %z').date()
-        querysize=int(element['size'])
-        queryguessit=guessitinfo(querytitle)
+        searchtitle=element['title']
+
+
+        queryguessit=guessitinfo(searchtitle)
         queryguessit.set_values()
-        if re.sub(":","",queryguessit.get_name())==re.sub(":","",fileguessit.get_name()):
+        querygroup=queryguessit.get_group()
+        querysource=queryguessit.get_source()
+        querysize=int(element['size'])
+        querydate=datetime.strptime(element['pubDate'], '%a, %d %b %Y %H:%M:%S %z').date()
+        queryresolution=queryguessit.get_resolution()
+        querytitle=queryguessit.get_name()
+        if querytitle=="":
+            continue
+        if querytitle==title:
             titlematch=True
-        if queryguessit.get_source()==fileguessit.get_source():
+        if querysource==fileguessit.get_source() or querysource=="" or fileguessit.get_source()=="":
             source=True
-        if queryguessit.get_group()==fileguessit.get_group() or re.search(queryguessit.get_group(),fileguessit.get_group(),re.IGNORECASE)!=None \
-        or re.search(fileguessit.get_group(),queryguessit.get_group(),re.IGNORECASE)!=None or arguments["--sites"]=="animebytes":
+        if querygroup==fileguessit.get_group() or re.search(querygroup,fileguessit.get_group(),re.IGNORECASE)!=None \
+        or re.search(fileguessit.get_group(),querygroup,re.IGNORECASE)!=None or querygroup=="" or fileguessit.get_group()=="":
             group=True
-        if queryguessit.get_resolution()==fileguessit.get_resolution():
+        if queryresolution==fileguessit.get_resolution():
             resolution=True
-        if queryguessit.get_season_num()!=fileguessit.get_season_num():
-            season=True
         if datefilter < querydate:
             filedate=True
         if difference(querysize,filesize)<.01:
             sizematch=True
-        if (titlematch is True and source is True and group is True and resolution is True and filedate is True and (sizematch is True or filesize==0)):
+        if (titlematch is True and source is True and group is True and resolution  is True\
+         and filedate is True and (sizematch is True or filesize==0)):
             pass
         else:
             continue
-        if arguments['--output']!=None and arguments['--output']!="" :
+        logger.debug(f"Comparison UserTitle:{title} SiteTite:{querytitle} UserSource{fileguessit.get_source()} SiteSource:{querysource} UserGroup:{fileguessit.get_group()} SiteGroup:{querygroup} UserRes:{fileguessit.get_resolution()} SiteRes:{queryresolution} Date:{filedate}  \n")
+        quit()
+        if arguments['--output']!=None and arguments['--output']!="" and arguments['--output']!="None":
+            link=element['link']
             t=open(arguments['--output'],'a')
-            print("writing to file:",arguments['--output'])
+            logger.warn("writing to file:",arguments['--output'])
             t.write(link+'\n')
         if arguments['--torrent']!=None and arguments['--torrent']!="" :
-            torrentfile=(f"[{site}{querytitle}.torrent")
-            torrentfile=re.sub("/",".",torrentfile)
-            torrent=os.path.join(torrentfolder,torrentfile)
-            print(torrent)
             link=element['link']
+            title=re.sub(": ","-",querytitle)
+
+            name=(f"[{site}.{title}.{querysource}.{queryresolution}.{querygroup}.torrent")
+            name=re.sub("/",".",torrentfile)
+            torrent=os.path.join(torrentfolder,name)
+            logger.warn(torrent)
+            logger.warn(link)
             try:
                 subprocess.run(['wget',link,'-O',torrent])
             except:
-                print("Error Downloading")
-                errorpath=open(errorfile,"a+")
-                errorstring=title + ": Could not find Download:"+ link  + " - " +datetime.now().strftime("%m.%d.%Y_%H%M") + "\n"
-                errorpath.write(errorstring)
-                errorpath.close()
-def get_missing(site,errorfile,arguments,files,encode=None):
+                logger.warn(f"{title}: Could not find Download-{currentdate}")
+
+
+def get_missing(site,arguments,files,encode=None):
     if encode==None:
         encode==False
     output=arguments['--misstxt']
-    datefilter=(date.today()- timedelta(int(arguments['--date'])))
     file=files.get_first()
+    currentdate=datetime.now().strftime("%m.%d.%Y_%H%M")
+
     if file=="No Files":
         return
     filesize=files.get_size()
@@ -122,90 +129,86 @@ def get_missing(site,errorfile,arguments,files,encode=None):
     fileguessit.set_values()
     title=fileguessit.get_name().lower()
     search=get_url(arguments,site,fileguessit)
-    print("Searching For",files.type,"with:",search)
+    logger.warn(f"Searching For {files.type} with: {search}")
+
     try:
         response = requests.get(search, timeout=300)
     except:
-        errorpath=open(errorfile,"a+")
-        errorstring=title +": Could not find Get a response from"+ site +": +search +"  +files.get_type() + " - " +datetime.now().strftime("%m.%d.%Y_%H%M") + "\n"
-        errorpath.write(errorstring)
-        errorpath.close()
-        print("Issue getting response:",search)
+        logger.warn(f"{search} Issue getting response{curentdate}")
         return
     try:
         results=xmltodict.parse(response.content)
     except:
-        errorpath=open(errorfile,"a+")
-        errorstring=title + ": Could not find parse"+ site + " response URL: "+search+" " +files.get_type() + " - " +datetime.now().strftime("%m.%d.%Y_%H%M") + "\n"
-        errorpath.write(errorstring)
-        errorpath.close()
-        print("unable to parse xml")
+        logger.warn(f"{title}: Could not find parse  {site} XML {search} {files.get_type()}-{currentdate}")
         return
     try:
         results['rss']['channel']['item'][1]['title']
         loop=True
         max=len(results['rss']['channel']['item'])
     except KeyError as key:
-        print(key)
         if str(key)=="1":
             element=results['rss']['channel']['item']
             max=1
             loop=False
         else:
-            print("Probably no results")
+            logger.warn(f"{title}:Probably no results")
             addmissing(output,site,files,file)
             return
+
     for i in range(max):
+
         titlematch=False
-        filedate=False
         group=False
         resolution=False
         source=False
         sizematch=False
         if loop: element = results['rss']['channel']['item'][i]
-        querytitle=element['title']
-        if querytitle==None:
-            continue
-        querydate=datetime.strptime(element['pubDate'], '%a, %d %b %Y %H:%M:%S %z').date()
-        querysize=int(element['size'])
-        queryguessit=guessitinfo(querytitle)
+        searchtitle=lower(element['title'])
+        queryguessit=guessitinfo(searchtitle)
         queryguessit.set_values()
-        if re.sub(":","",queryguessit.get_name())==re.sub(":","",fileguessit.get_name()):
+        querysource=queryguessit.get_source()
+        querygroup=queryguessit.get_group()
+        queryresolution=queryguessit.get_resolution()
+        querysize=int(element['size'])
+        querytitle=queryguessit.get_name()
+
+        if querytitle=="":
+            continue
+        if querytitle==title:
             titlematch=True
-        if queryguessit.get_source()==fileguessit.get_source():
+        if querysource==fileguessit.get_source() or querysource=="" or fileguessit.get_source()=="":
             source=True
-        if queryguessit.get_group()==fileguessit.get_group() or re.search(queryguessit.get_group(),fileguessit.get_group(),re.IGNORECASE)!=None \
-        or re.search(fileguessit.get_group(),queryguessit.get_group(),re.IGNORECASE)!=None or arguments["--sites"]=="animebytes":
+
+        if querygroup==fileguessit.get_group() or re.search(querygroup,fileguessit.get_group(),re.IGNORECASE)!=None \
+        or re.search(fileguessit.get_group(),querygroup,re.IGNORECASE)!=None or querygroup=="" or fileguessit.get_group()=="":
             group=True
-        if queryguessit.get_resolution()==fileguessit.get_resolution():
+        if queryresolution==fileguessit.get_resolution():
             resolution=True
-        if queryguessit.get_season_num()!=fileguessit.get_season_num():
-            season=True
-        if datefilter < querydate:
-            filedate=True
         if difference(querysize,filesize)<.01:
             sizematch=True
-        if ((titlematch is True and source is True and group is True and resolution is True \
-        and sizematch is True) and filesize!=0):
-                return
-        addmissing(output,site,files,file)
+
+        #logger.debug(f"Comparison UserTitle:{title} SiteTite:{querytitle} UserSource:{fileguessit.get_source()} SiteSource:{querysource} UserGroup:{fileguessit.get_group()} SiteGroup:{querygroup} UserRes:{fileguessit.get_resolution()} SiteRes:{queryresolution} \n")
+        if titlematch is True and source is True and group is True and resolution is True \
+        and sizematch is True and filesize!=0:
+            return
+    addmissing(output,site,files,file)
 
 
 
 
 
 def addmissing(output,site,files,file):
-    print("Adding Potential Upload to File")
+    logger.warn("Adding Potential Upload to File")
     output=open(output,"a+")
-    output.write(site)
-    output.write(":")
-    if files.get_dir()!=0:
-        output.write(files.get_dir())
-        output.write(":")
-    output.write(file)
+    output.write(f"{site}:")
+    if files.get_dir()=="0":
+        output.write("Directory:Single-File:")
+        output.write(file)
+    else:
+        output.write(f"Directory:{files.get_dir()}:")
+        output.write(file)
     output.write('\n')
     output.close()
-
 def get_url(arguments,site,guessitinfo):
     jackett=arguments['--url'] +"jackett/api/v2.0/indexers/"
     apikey=arguments['--api']
