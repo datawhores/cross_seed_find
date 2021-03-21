@@ -1,15 +1,16 @@
-#! /usr/bin/env python3
+#!/usr/bin/env python3
 """NOTE: READ DOCUMENTATION BEFORE USAGE.
 Usage:
     cross.py [(-h | --help) --txt=<txtlocation> --fd <fd> --wget <wget> --config <config> --delete --lines-skip <num_lines_skipped --fdignore <fd_ignore>]
     [--torrent <torrents_download>  --output <output> --api <apikey> --date <int>  --misstxt <output> --sites <jackett_sites_names>]
     cross.py interactive [(-h | --help) --txt=<txtlocation> --fd <fd> --wget <wget> --config <config> --delete --lines-skip <num_lines_skipped --fdignore <fd_ignore> --log <log>]
-    [--torrent <torrents_download>  --output <output> --api <apikey> --date <int>  --misstxt <output> --sites <jackett_sites_names>]
+    [--torrent <torrents_download>  --output <output> --api <apikey> --date <int>  --misstxt <output> --sites <jackett_sites_names> --alt <alt> --sitenm <sitenickame>]
     [--root <normal_root> ... --ignore <sub_folders_to_ignore>...]
     cross.py scan [--txt=<txtlocation> -fd <fd> --wget <wget> --fdignore <fd_ignore> --config <config> --delete --log <log>]
     [--root <normal_root> ... --ignore <sub_folders_to_ignore>...]
-    cross.py grab [ --txt=<txtlocation> --sites <jackett_sitesname> --url <jacketturl_port> --fd <fd> --wget <wget> --fdignore <fd_ignore> --lines-skip <num_lines_skipped> --torrent <torrents_download> --output <output> --log <log>]
-    [--api <apikey> --config <config> --date <int> ]
+    cross.py grab [ --txt=<txtlocation> --sites <jackett_sitesname> --url <jacketturl_port> --fd <fd> --wget <wget> --fdignore <fd_ignore> --lines-skip <num_lines_skipped>]
+    [--torrent <torrents_download> --output <output> --log <log> --alt <alt> --sitenm <sitenickame>]
+    [--api <apikey> --date <int> --config <config>]
     [--exclude <source_excluded>]...
     cross.py missing [--txt=<txtlocation> --sites <jackett_sitesname> --url <jacketturl_port> --fd <fd> --wget <wget>  --misstxt <output> --api <apikey>][--config <config> --log <log> --lines-skip <num_lines_skipped>]
     [--exclude <source_excluded>...]
@@ -52,6 +53,8 @@ other OS may need to input this manually
   --filter ; -f <reduce_query> Some sites don't allow for much filtering in searches: [1:Name + Season(TV) + resolution + source][2:Name + Season(TV) + source]
   [3:Name + Season(TV) + resolution][4:Name + Season(TV)][5:Name]
   Note:Season only matters for TV. Default would be 4(optional)  [default:None]
+  --alt <alt> Number of lines in txt file to skip during grab  [default: False]
+  --sitenm ; <site_nickname>  nickname to append to torrent files
 =============================================================================================================================================
 
 
@@ -87,12 +90,13 @@ import sys
 from shutil import which
 import logging
 import copy
+from subprocess import PIPE
 """
 Setup Function
 """
 
 
-def duperemove(txt):
+def dupe_remove(txt):
     print("Removing Duplicate lines from ",txt)
     if txt==None:
         return
@@ -357,7 +361,7 @@ def searchdir(arguments):
     else:
         shellbool=True
     folders=open(arguments['--txt'],"a+")
-    logger.warn("Adding Folders/Files to", arguments['--txt'])
+    logger.warn(f"Adding Folders Files to {arguments['--txt']}")
     if type(arguments['--root'])==str:
         arguments['--root']=arguments['--root'].split(",")
     list=arguments['--root']
@@ -368,14 +372,16 @@ def searchdir(arguments):
         if os.path.isdir(root)==False:
           print(root," is not valid directory")
           continue
-        t=subprocess.run([arguments['--fd'],'.',root,'-t','d','--max-depth','1','--ignore-file',ignorefile],stdout=folders,shell=shellbool)
-        t2=subprocess.run([arguments['--fd'],'.',root,'-t','f','-e','.mkv','--max-depth','1','--ignore-file',ignorefile],stdout=folders,shell=shellbool)
-
-        logger.warn(t.stdout)
-        logger.warn(t2.stdout)
-        folders.write(t.stdout)
-        folders.write(t2.stdout)
-
+        t1=subprocess.run([arguments['--fd'],'Season\s[0-9][0-9]$',root,'-t','d','--max-depth','2','--ignore-file',ignorefile],stdout=PIPE,shell=shellbool)
+        output1=t1.stdout.decode('utf8', 'strict')
+        logger.warn(output1)
+        folders.write(output1)
+        if len(output1)!=0:
+            continue
+        t2=subprocess.run([arguments['--fd'],'.',root,'-t','f','-e','.mkv','--max-depth','2','--ignore-file',ignorefile],stdout=PIPE,shell=shellbool)
+        output2=t2.stdout.decode('utf8', 'strict')
+        logger.warn(output2)
+        folders.write(output2)
     print("Done")
 #Main
 if __name__ == '__main__':
@@ -411,6 +417,7 @@ if __name__ == '__main__':
             ).run()
             if startconfig:
                 createconfig(config)
+
             continueloop =True
             updateargs(arguments)
             setup_binaries(arguments)
@@ -435,16 +442,16 @@ if __name__ == '__main__':
                     t=setup_txt(arguments,True)
                     if t==False:
                         continue
-                    duperemove(arguments['--fdignore'])
+                    dupe_remove(arguments['--fdignore'])
                     searchdir(arguments)
-                    duperemove(arguments['--txt'])
+                    dupe_remove(arguments['--txt'])
                 elif continueloop=="missing":
                     t=setup_txt(arguments,True)
                     if t==False:
                         continue
                     setup_binaries(arguments)
                     missing(arguments)
-                    duperemove(arguments['--misstxt'])
+                    dupe_remove(arguments['--misstxt'])
                 elif continueloop=="download":
                     t=setup_txt(arguments,True)
                     if t==False:
@@ -475,11 +482,17 @@ if __name__ == '__main__':
         setup_txt(arguments)
         setup_binaries(arguments)
         set_ignored(arguments)
-        duperemove(arguments['--fdignore'])
+        dupe_remove(arguments['--fdignore'])
         searchdir(arguments)
-        duperemove(arguments['--txt'])
+        dupe_remove(arguments['--txt'])
     elif arguments['grab']:
         updateargs(arguments)
+        tv=os.path.join(arguments["--torrent"],"TV")
+        movie=os.path.join(arguments["--torrent"],"Movies")
+        if os.path.isdir(tv)==False:
+            os.mkdir(tv)
+        if os.path.isdir(movie)==False:
+            os.mkdir(movie)
         setup_txt(arguments)
         setup_binaries(arguments)
         download(arguments)
@@ -488,4 +501,4 @@ if __name__ == '__main__':
         setup_txt(arguments)
         setup_binaries(arguments)
         missing(arguments)
-        duperemove(arguments['--misstxt'])
+        dupe_remove(arguments['--misstxt'])
