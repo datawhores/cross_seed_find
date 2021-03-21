@@ -38,6 +38,7 @@ class Folder:
         if len(self.get_files().readlines())<1:
             return
         self.get_files().seek(0, 0)
+        logger.debug(f"Sizes \n\n")
         for line in self.get_files().readlines():
             line=line.rstrip()
             temp=temp+os.path.getsize(line)
@@ -164,9 +165,9 @@ class Folder:
             '--exclude','*2160*','--exclude','*720*','--exclude','480','--exclude','*[rR][eE][mM][uU][xX]*','--exclude','*.[wW][eE][bB]*','--exclude','*.[bB][lL][uU]*','--exclude','*[tT][vV]*','--exclude','*[sS][aA][mM][pP][lL][eE]*','--exclude',
             '*[tT][rR][aA][iL][eE][rR]*'],shell=shellbool,stdout=subprocess.PIPE).stdout.decode('utf-8')
         if len(temp)==0:
-            logger.debug(f"No Matching Files for Search")
+            logger.debug(f"\n\n{self.get_type()}:No Matching Files for Search")
         else:
-            logger.debug(f"List of Files in Directory: {temp}")
+            logger.debug(f"{self.get_type()}:List of Files in Directory \n\n{temp}" )
         files.write(temp)
         self.files=files
     def get_first(self):
