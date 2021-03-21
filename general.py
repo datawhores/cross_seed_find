@@ -54,6 +54,9 @@ def get_matches(site,arguments,files):
         else:
             logger.warn("Probably no results")
             return
+    logger.debug(f"Results")
+    if arguments['--sitenm']!=None:
+        site=arguments['--sitenm']
     for i in range(max):
         titlematch=False
         filedate=False
@@ -61,6 +64,7 @@ def get_matches(site,arguments,files):
         resolution=False
         source=False
         sizematch=False
+        season=fileguessit.get_season()
         if loop: element = results['rss']['channel']['item'][i]
         searchtitle=element['title']
 
@@ -88,13 +92,14 @@ def get_matches(site,arguments,files):
             filedate=True
         if difference(querysize,filesize)<.01:
             sizematch=True
+        logger.debug(f"\n\nComparison=UserTitle:[{title}] SiteTite:[{querytitle}] UserSource:[{fileguessit.get_source()}] SiteSource:[{querysource}] UserGroup:[{fileguessit.get_group()}] \
+SiteGroup:[{querygroup}] UserRes:[{fileguessit.get_resolution()}] [SiteRes:{queryresolution}] UserSize:[{querysize}] [SiteSize:{filesize}] Date:[{filedate}]")
+
         if (titlematch is True and source is True and group is True and resolution  is True\
          and filedate is True and (sizematch is True or filesize==0)):
             pass
         else:
             continue
-        logger.debug(f"Comparison UserTitle:{title} SiteTite:{querytitle} UserSource{fileguessit.get_source()} SiteSource:{querysource} UserGroup:{fileguessit.get_group()} SiteGroup:{querygroup} UserRes:{fileguessit.get_resolution()} SiteRes:{queryresolution} Date:{filedate}  \n")
-        quit()
         if arguments['--output']!=None and arguments['--output']!="" and arguments['--output']!="None":
             link=element['link']
             t=open(arguments['--output'],'a')
@@ -104,9 +109,14 @@ def get_matches(site,arguments,files):
             link=element['link']
             title=re.sub(": ","-",querytitle)
 
-            name=(f"[{site}.{title}.{querysource}.{queryresolution}.{querygroup}.torrent")
-            name=re.sub("/",".",torrentfile)
-            torrent=os.path.join(torrentfolder,name)
+            torrentfile=(f"[{site}]{title}.{querysource}.{queryresolution}.{querygroup}.torrent")
+            subpath="Movies"
+            if season!="":
+                season=re.sub("season ","S",season)
+                torrentfile=(f"[{site}]{title}.{season}.{querysource}.{queryresolution}.{querygroup}.torrent")
+                subpath="TV"
+            torrentfile=re.sub("/",".",torrentfile)
+            torrent=os.path.join(torrentfolder,subpath,torrentfile)
             logger.warn(torrent)
             logger.warn(link)
             try:
@@ -154,7 +164,9 @@ def get_missing(site,arguments,files,encode=None):
             logger.warn(f"{title}:Probably no results")
             addmissing(output,site,files,file)
             return
-
+    logger.debug(f"Results\n\n")
+    if arguments['--sitenm']!=None:
+        site=arguments['--sitenm']
     for i in range(max):
 
         titlematch=False
@@ -162,7 +174,14 @@ def get_missing(site,arguments,files,encode=None):
         resolution=False
         source=False
         sizematch=False
+        season=fileguessit.get_season()
+
+
+
+
+
         if loop: element = results['rss']['channel']['item'][i]
+        logger.debug(f"Number {i}: {element}")
         searchtitle=lower(element['title'])
         queryguessit=guessitinfo(searchtitle)
         queryguessit.set_values()
@@ -187,7 +206,8 @@ def get_missing(site,arguments,files,encode=None):
         if difference(querysize,filesize)<.01:
             sizematch=True
 
-        #logger.debug(f"Comparison UserTitle:{title} SiteTite:{querytitle} UserSource:{fileguessit.get_source()} SiteSource:{querysource} UserGroup:{fileguessit.get_group()} SiteGroup:{querygroup} UserRes:{fileguessit.get_resolution()} SiteRes:{queryresolution} \n")
+        logger.debug(f"\n\nComparison=UserTitle:[{title}] SiteTite:[{querytitle}] UserSource:[{fileguessit.get_source()}] SiteSource:[{querysource}] UserGroup:[{fileguessit.get_group()}] \
+SiteGroup:[{querygroup}] UserRes:[{fileguessit.get_resolution()}] [SiteRes:{queryresolution}] UserSize:[{querysize}] [SiteSize:{filesize}] Date:[{filedate}]")
         if titlematch is True and source is True and group is True and resolution is True \
         and sizematch is True and filesize!=0:
             return
@@ -215,8 +235,10 @@ def get_url(arguments,site,guessitinfo):
     filter=arguments['--filter']
     name=guessitinfo.get_name()
     season=guessitinfo.get_season()
-    if season!="":
-        season=season+ ' '
+    # if season!="":
+    #     season=f"season {season}"get_url
+    if arguments['--alt']=="True":
+        season=re.sub("season ","S",season)
     source=guessitinfo.get_source()
     resolution=guessitinfo.get_resolution()
     try:
@@ -227,6 +249,7 @@ def get_url(arguments,site,guessitinfo):
             "4":name + ' ' +season, \
             "5":name}.get(filter)
         url=url.replace(" ", "+")
+        url=re.sub("\+$","",url)
     except:
         return
     return url
