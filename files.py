@@ -36,6 +36,7 @@ class File:
         return  self.encode
     def set_size(self):
         self.size=os.path.getsize(self.get_name())
+        logger.debug(f"{self.name}:{self.size}")
     def set_valid(self):
         if re.search("[rR][eE][mM][uU][xX]",self.name)!=None and self.source['remux']=='yes':
             self.valid=True
@@ -94,7 +95,7 @@ def download_file(arguments,line,source):
         currentfile.set_size()
         currentfile.set_type()
         for site in arguments["--sites"].split(","):
-            get_matches(site,errorpath,arguments,currentfile)
+            get_matches(site,arguments,currentfile)
     if currentfile.get_valid()==False:
         return
     """
