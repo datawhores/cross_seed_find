@@ -39,7 +39,7 @@ class guessitinfo():
     def set_encode(self):
         self.encode=self.get_info().get('video_codec',"")
     def set_source(self):
-        self.source=self.get_info().get('source',"")        
+        self.source=self.get_info().get('source',"")
         try:
             self.source=self.source.lower()
         except:
